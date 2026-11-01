@@ -12,7 +12,7 @@ export async function PUT(request: Request) {
     const weekStart = String(body.weekStart || "");
     const hourlyRate = Number(body.hourlyRate);
     if (!employeeName || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart) || !Number.isFinite(hourlyRate) || hourlyRate < 0) {
-      return NextResponse.json({ error: "Tên nhân viên, tuần và hệ số lương chưa hợp lệ." }, { status: 400 });
+      return NextResponse.json({ error: "Tên nhân viên, tuần và hệ số lương chưa hợp lệ" }, { status: 400 });
     }
     const weeklyPay = await WeeklyPay.findOneAndUpdate(
       { employeeName, weekStart },
@@ -21,7 +21,7 @@ export async function PUT(request: Request) {
     );
     return NextResponse.json({ hourlyRate: weeklyPay.hourlyRate });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Không thể lưu hệ số lương.";
+    const message = error instanceof Error ? error.message : "Không thể lưu hệ số lương";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

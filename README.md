@@ -27,7 +27,7 @@
 - **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca và nhập tên người làm chung nếu có.
 - **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca, tổng lương của tuần cập nhật theo hệ số đã lưu.
 
-Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
+Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả tuần chưa nhập hệ số. Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
 
 ## Quy tắc ca
 

@@ -8,7 +8,7 @@ globalWithMongoose.mongooseCache = cached;
 export async function connectToDatabase() {
   const uri = process.env.MONGODB_URI;
   if (!uri) {
-    throw new Error("Thiếu MONGODB_URI. Hãy tạo file .env.local từ .env.example và thêm chuỗi kết nối MongoDB.");
+    throw new Error("Thiếu MONGODB_URI, hãy tạo file .env.local từ .env.example và thêm chuỗi kết nối MongoDB");
   }
   if (cached.conn) return cached.conn;
   if (!cached.promise) {
