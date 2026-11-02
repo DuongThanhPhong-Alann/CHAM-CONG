@@ -1,1165 +1,2587 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=Manrope:wght@400;500;600;700;800&display=swap');
-
 :root {
-  --ink: #0f273d;
-  --ink-secondary: #27455c;
-  --muted: #647d92;
-  --blue-dark: #0f3d59;
-  --blue-primary: #0284c7;
-  --blue-deep: #0369a1;
-  --sky: #38bdf8;
-  --sky-light: #e0f2fe;
-  --teal: #0d9488;
-  --line: rgba(210, 228, 238, 0.8);
-  --panel: rgba(255, 255, 255, 0.94);
-  --panel-border: rgba(255, 255, 255, 0.85);
-  --panel-shadow: 
-    0 1px 3px rgba(15, 45, 70, 0.035),
-    0 14px 38px -4px rgba(15, 55, 85, 0.075);
+  --font-sans: var(--font-be-vietnam), "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-heading: var(--font-be-vietnam), "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* Bảng màu Thiên Nhiên: Nước · Biển · Cây · Gỗ · Đá */
+  --sand-desk: #efe9dc;
+  --text-main: #231f1c;
+  --text-sub: #544d45;
+  --text-muted: #787066;
+
+  --ocean-bright: #0ea5e9;
+  --ocean-main: #0284c7;
+  --ocean-deep: #0369a1;
+  --ocean-abyss: #083344;
+
+  --forest-lush: #15803d;
+  --forest-teal: #0f766e;
+
+  --wood-light: #f3dfb9;
+  --wood-mid: #d9b079;
+  --wood-deep: #b6844c;
+  --wood-edge: #7c5027;
+
+  /* Hạt đá tự nhiên & vân sợi gỗ tinh tế */
+  --stone-speckle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E");
+  --wood-fibers: repeating-linear-gradient(
+    3deg,
+    rgba(110, 66, 25, 0.055) 0px,
+    rgba(110, 66, 25, 0.055) 1.5px,
+    rgba(255, 248, 232, 0.07) 1.5px,
+    rgba(255, 248, 232, 0.07) 5px,
+    rgba(128, 78, 32, 0.035) 5px,
+    rgba(128, 78, 32, 0.035) 9px
+  );
 }
 
-* { box-sizing: border-box; }
-html { min-height: 100%; background: #edf6fb; }
-body { 
-  margin: 0; 
-  min-height: 100vh; 
-  color: var(--ink); 
-  background: #edf6fb; 
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  min-height: 100%;
+  background: #e9e1d2;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text-main);
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #dff2fc 0%, #eef7fc 260px, #efe8da 470px, #e6ddcc 100%);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-button, input { font: inherit; }
-button { color: inherit; }
 
-/* SHELL & REALISTIC MOUNTAIN SKY ATMOSPHERE */
-.app-shell { 
-  min-height: 100vh; 
-  position: relative; 
-  overflow: hidden; 
-  background: linear-gradient(180deg, #d2eefb 0%, #e4f3fa 300px, #eff7fc 620px, #f6fafd 100%); 
+button,
+input,
+pre {
+  font-family: var(--font-sans);
 }
 
-.mountain-scene { 
-  pointer-events: none; 
-  position: absolute; 
-  top: 0; 
-  inset-inline: 0; 
-  height: 520px; 
-  overflow: hidden; 
-  z-index: 0;
+button {
+  color: inherit;
+  cursor: pointer;
 }
 
-.mountain-svg {
+/* ==========================================================================
+   TOÀN CẢNH THIÊN NHIÊN: VỊNH BIỂN · SÓNG NƯỚC · RỪNG CÂY · NÚI ĐÁ
+   ========================================================================== */
+.app-shell {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.nature-scene {
+  pointer-events: none;
   position: absolute;
   top: 0;
   left: 0;
+  right: 0;
+  height: 500px;
+  z-index: 0;
+  overflow: hidden;
+  mask-image: linear-gradient(180deg, #000000 0%, #000000 76%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000000 0%, #000000 76%, transparent 100%);
+}
+
+.nature-svg {
   width: 100%;
   height: 100%;
-  pointer-events: none;
+  display: block;
 }
 
-.page-wrap { 
-  width: min(1190px, calc(100% - 64px)); 
-  margin: 0 auto; 
-  position: relative; 
-  z-index: 1; 
+.sea-wave-back {
+  animation: wave-glide-slow 11s ease-in-out infinite alternate;
 }
 
-/* TOPBAR */
-.topbar { 
-  height: 82px; 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
+.sea-wave-mid {
+  animation: wave-glide-reverse 8.5s ease-in-out infinite alternate;
 }
 
-.brand { 
-  display: inline-flex; 
-  align-items: center; 
-  gap: 11px; 
-  color: #0f344d; 
-  font-family: Manrope, sans-serif; 
-  font-weight: 800; 
-  font-size: 21px; 
-  letter-spacing: -0.7px; 
-  text-decoration: none; 
-  transition: transform 0.15s ease;
-}
-.brand:hover { transform: translateY(-1px); }
-
-.brand-mark { 
-  display: grid; 
-  place-items: center; 
-  width: 38px; 
-  height: 38px; 
-  border-radius: 12px; 
-  color: #ffffff; 
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); 
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 5px 14px rgba(2, 132, 199, 0.32); 
+.sea-wave-foam {
+  animation: wave-glide-slow 7s ease-in-out infinite alternate;
 }
 
-.brand-mark-image { 
-  width: auto;
-  min-width: 46px; 
-  height: 38px; 
-  padding: 3px 6px;
-  overflow: hidden; 
-  border: 1px solid rgba(195, 222, 236, 0.85); 
-  border-radius: 11px; 
-  background: #ffffff; 
-  box-shadow: 0 2px 8px rgba(15, 45, 70, 0.05); 
+.water-sparkles {
+  animation: water-glint 4.5s ease-in-out infinite alternate;
+}
+
+.cloud-drift {
+  animation: cloud-float 22s ease-in-out infinite alternate;
+}
+
+.breeze-trees {
+  transform-origin: bottom center;
+  animation: pine-breeze 6.5s ease-in-out infinite alternate;
+}
+
+.breeze-trees-delayed {
+  animation-delay: -3.2s;
+}
+
+@keyframes wave-glide-slow {
+  0% { transform: translateX(-18px) translateY(0); }
+  100% { transform: translateX(18px) translateY(3px); }
+}
+
+@keyframes wave-glide-reverse {
+  0% { transform: translateX(16px) translateY(2px); }
+  100% { transform: translateX(-16px) translateY(-2px); }
+}
+
+@keyframes water-glint {
+  0% { opacity: 0.38; transform: scaleX(0.96); }
+  100% { opacity: 0.78; transform: scaleX(1.04); }
+}
+
+@keyframes cloud-float {
+  0% { transform: translateX(-14px); }
+  100% { transform: translateX(18px); }
+}
+
+@keyframes pine-breeze {
+  0% { transform: skewX(-0.8deg); }
+  100% { transform: skewX(1.1deg); }
+}
+
+.page-wrap {
+  width: min(1160px, calc(100% - 40px));
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  padding-bottom: 52px;
+}
+
+/* ==========================================================================
+   TOPBAR: CON DẤU ĐÁ BIỂN · LÁ RỪNG · NÚT GỖ 3 GẠCH
+   ========================================================================== */
+.topbar {
+  height: 78px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1.5px solid rgba(130, 158, 175, 0.32);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+  margin-bottom: 20px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #16242f;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  text-decoration: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.brand-mark {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-.brand-mark-image img { 
-  display: block; 
-  width: auto; 
-  max-height: 28px; 
-  object-fit: contain; 
-}
-.brand-light { color: #0284c7; }
-
-.topbar-right { display: flex; align-items: center; gap: 18px; }
-
-.cloud-label { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  color: #48697d; 
-  font-size: 12px; 
-  font-weight: 600; 
-  padding: 6px 11px;
-  background: rgba(255, 255, 255, 0.65);
-  border: 1px solid rgba(210, 230, 240, 0.7);
-  border-radius: 999px;
-  backdrop-filter: blur(8px);
-}
-
-.live-dot { 
-  width: 7px; 
-  height: 7px; 
-  background: #10b981; 
-  border-radius: 99px; 
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); 
-  animation: pulse-dot 2.5s infinite ease-in-out;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
-  50% { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.32); }
-}
-
-.profile-chip { 
-  display: flex; 
-  gap: 9px; 
-  align-items: center; 
-  padding: 5px 12px 5px 5px; 
-  border: 1px solid rgba(205, 226, 237, 0.8); 
-  background: rgba(255, 255, 255, 0.85); 
-  border-radius: 999px; 
-  color: #1e3d52; 
-  font-size: 12px; 
-  font-weight: 700; 
-  cursor: pointer; 
-  backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(15, 45, 70, 0.04);
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-.profile-chip:hover {
-  transform: translateY(-1px);
-  border-color: #7dd3fc;
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
-}
-.profile-chip svg { color: #647d92; }
-
-.avatar { 
-  display: grid; 
-  place-items: center; 
-  height: 28px; 
-  width: 28px; 
-  border-radius: 50%; 
-  color: #fff; 
-  background: linear-gradient(135deg, #0ea5e9, #0284c7); 
-  font-size: 12px; 
-  font-weight: 800; 
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
-}
-
-/* WELCOME BANNER */
-.welcome { 
-  min-height: 157px; 
-  display: flex; 
-  align-items: flex-start; 
-  justify-content: space-between; 
-  padding: 16px 2px 28px; 
-}
-
-.eyebrow { 
-  display: inline-flex; 
-  align-items: center; 
-  gap: 6px; 
-  margin-bottom: 10px; 
-  color: #0284c7; 
-  font-size: 10.5px; 
-  letter-spacing: 1.3px; 
-  font-weight: 800; 
-  text-transform: uppercase;
-}
-
-.welcome h1 { 
-  margin: 0; 
-  color: #0f2d42; 
-  font-family: Manrope, sans-serif; 
-  font-size: clamp(32px, 4.2vw, 44px); 
-  letter-spacing: -1.6px; 
-  line-height: 1.15; 
-  font-weight: 800; 
-}
-.welcome h1 span { color: #0284c7; }
-
-.welcome p { 
-  margin: 10px 0 0; 
-  color: #4a677d; 
-  font-size: 14.5px; 
-  max-width: 500px;
-  line-height: 1.5;
-}
-
-.today-pill { 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  margin-top: 40px; 
-  padding: 9px 15px; 
-  color: #0f4968; 
-  border: 1px solid rgba(195, 222, 236, 0.85); 
-  border-radius: 999px; 
-  background: rgba(255, 255, 255, 0.8); 
-  backdrop-filter: blur(10px);
-  font-size: 12.5px; 
-  font-weight: 700; 
-  box-shadow: 0 2px 8px rgba(15, 45, 70, 0.04);
-}
-.today-pill svg { color: #0284c7; }
-
-/* TABS - REALISTIC SEGMENTED CONTROL */
-.app-tabs { 
-  display: flex; 
-  gap: 6px; 
-  width: fit-content; 
-  max-width: 100%; 
-  margin: 2px 0 16px; 
-  padding: 6px; 
-  overflow-x: auto; 
-  border: 1px solid rgba(210, 228, 238, 0.85); 
-  border-radius: 14px; 
-  background: rgba(255, 255, 255, 0.82); 
-  backdrop-filter: blur(12px);
-  box-shadow: 0 3px 14px rgba(15, 45, 70, 0.04); 
-}
-
-.app-tabs button { 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 7px; 
-  min-height: 38px; 
-  padding: 0 15px; 
-  white-space: nowrap; 
-  color: #4b687f; 
-  border: 1px solid transparent; 
-  border-radius: 9px; 
-  background: transparent; 
-  font-size: 11.5px; 
-  font-weight: 600; 
-  cursor: pointer; 
-  transition: all 0.16s ease; 
-}
-.app-tabs button:hover { 
-  color: #0369a1; 
-  background: rgba(238, 248, 253, 0.8); 
-}
-.app-tabs button.active { 
-  color: #0284c7; 
-  background: #ffffff; 
-  border-color: #cbe3f0;
-  box-shadow: 
-    0 2px 8px rgba(15, 65, 95, 0.08),
-    inset 0 1px 0 #ffffff; 
-  font-weight: 700;
-}
-.app-tabs button > span { margin-left: -5px; color: #0ea5e9; font-weight: 500; }
-
-/* WEEK SELECTOR */
-.week-selector { 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  gap: 15px; 
-  margin: 0 0 18px; 
-  padding: 12px 16px; 
-  border: 1px solid rgba(215, 230, 239, 0.9); 
-  border-radius: 14px; 
-  background: rgba(255, 255, 255, 0.88); 
-  backdrop-filter: blur(12px);
-  box-shadow: 0 2px 10px rgba(15, 45, 70, 0.035);
-}
-.week-selector > div:first-child { display: grid; gap: 3px; }
-.week-selector-label { color: #698396; font-size: 8.5px; letter-spacing: 1px; font-weight: 800; text-transform: uppercase; }
-.week-selector strong { color: #173b52; font-size: 13px; font-weight: 700; }
-
-.week-selector-actions { display: flex; align-items: end; gap: 9px; margin-left: auto; }
-.week-picker { display: grid; gap: 3px; color: #698396; font-size: 8.5px; font-weight: 700; }
-.week-picker input { width: 138px; height: 34px; padding: 0 8px; color: #173b52; border: 1px solid #dbe7ee; border-radius: 9px; outline: 0; background: #fff; font: 10px 'DM Sans',sans-serif; }
-.week-picker input:focus { border-color: #73bbd0; box-shadow: 0 0 0 3px rgba(74,170,198,.11); }
-.week-controls { display: flex; gap: 6px; margin-left: 0; }
-.week-controls button { 
-  display: grid; 
-  place-items: center; 
-  width: 34px; 
-  height: 34px; 
-  color: #4b6a7e; 
-  border: 1px solid #dbe7ee; 
-  border-radius: 10px; 
-  background: #ffffff; 
-  cursor: pointer; 
-  box-shadow: 0 1px 3px rgba(15, 45, 70, 0.03), inset 0 1px 0 #ffffff;
-  transition: all 0.15s ease;
-}
-.week-controls button:hover { 
-  color: #0284c7; 
-  border-color: #93c5fd; 
-  background: #f0f9ff; 
-  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.12);
-}
-
-/* DASHBOARD GRID & PANELS */
-.dashboard-grid { 
-  display: grid; 
-  grid-template-columns: minmax(0, 1.62fr) minmax(315px, 0.9fr); 
-  gap: 20px; 
-  align-items: start; 
-}
-.main-column, .side-column { display: grid; gap: 18px; min-width: 0; }
-
-.panel { 
-  background: var(--panel); 
-  border: 1px solid var(--panel-border); 
-  border-radius: 18px; 
-  box-shadow: var(--panel-shadow); 
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.entry-panel { padding: 24px 26px 20px; }
-
-/* HEADINGS */
-.section-heading { display: flex; align-items: center; gap: 13px; min-width: 0; }
-.heading-icon { 
-  display: grid; 
-  place-items: center; 
-  width: 40px; 
-  height: 40px; 
-  flex: 0 0 auto; 
-  border-radius: 12px; 
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
-}
-.heading-icon-blue { color: #0284c7; background: #e0f2fe; border: 1px solid #bae6fd; }
-.heading-icon-teal { color: #0d9488; background: #ccfbf1; border: 1px solid #99f6e4; }
-.heading-icon-violet { color: #6366f1; background: #e0e7ff; border: 1px solid #c7d2fe; }
-
-.section-heading h2, .records-heading h2 { 
-  margin: 0; 
-  font-family: Manrope, sans-serif; 
-  font-size: 16.5px; 
-  line-height: 1.3; 
-  letter-spacing: -0.3px; 
-  color: #0f2f45; 
-  font-weight: 800;
-}
-.section-heading p, .records-heading p { margin: 3px 0 0; color: #698396; font-size: 11.5px; }
-.step-tag { 
-  margin-left: auto; 
-  align-self: flex-start; 
-  padding: 4px 8px; 
-  color: #0284c7; 
-  background: #f0f9ff;
-  border: 1px solid #dbeafe;
-  border-radius: 6px;
-  font-size: 9px; 
-  letter-spacing: 0.8px; 
-  font-weight: 800; 
-}
-
-/* FORM CONTROLS & INPUTS */
-.form-row { display: flex; align-items: center; gap: 11px; }
-.identity-row { margin: 22px 0 24px; }
-.field-label { color: #27475d; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
-
-.input-wrap { 
-  display: flex; 
-  align-items: center; 
-  gap: 10px; 
-  min-width: 0; 
-  height: 42px; 
-  padding: 0 12px; 
-  background: #ffffff; 
-  border: 1px solid #d2e3ed; 
-  border-radius: 10px; 
-  color: #0284c7; 
-  box-shadow: inset 0 1.5px 3px rgba(15, 40, 60, 0.035); 
-  transition: all 0.16s ease; 
-}
-.input-wrap:focus-within { 
-  border-color: #0284c7; 
+  flex: 0 0 64px;
+  width: 64px;
+  height: 42px;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(2, 132, 199, 0.18);
+  border-radius: 10px;
   background: #ffffff;
-  box-shadow: 
-    0 0 0 3px rgba(56, 189, 248, 0.22),
-    inset 0 1px 2px rgba(15, 40, 60, 0.02); 
+  box-shadow: 0 3px 8px rgba(15, 45, 70, 0.1);
 }
-.input-wrap input { 
-  width: 100%; 
-  min-width: 0; 
-  border: 0; 
-  outline: 0; 
-  color: #17384f; 
-  background: transparent; 
-  font-size: 12.5px; 
-  font-weight: 600;
-}
-.input-wrap input::placeholder { color: #94a9b7; font-weight: 400; }
-.name-input { flex: 1 1 160px; }
-.date-label { margin-left: 8px; }
-.date-input { flex: 0 1 175px; }
-.date-input input { font-size: 11.5px; }
 
-/* SHIFT TITLE ROW */
-.shift-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.shift-title-row h3 { margin: 0; font-family: Manrope, sans-serif; font-size: 14px; font-weight: 800; color: #173a50; }
-.shift-title-row p { margin: 3px 0 0; font-size: 10.5px; color: #728c9e; }
+.brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
-.hours-chip { 
-  display: flex; 
-  align-items: center; 
-  gap: 6px; 
-  padding: 7px 11px; 
-  color: #0369a1; 
-  border: 1px solid #bae6fd; 
-  border-radius: 9px; 
-  background: #f0f9ff; 
-  font-size: 10.5px; 
-  font-weight: 800; 
-  white-space: nowrap; 
-  box-shadow: 0 1px 2px rgba(2, 132, 199, 0.05);
+.brand-light {
+  color: #0284c7;
 }
-.hours-chip.hours-over { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+/* Huy hiệu Rừng Cây & Giọt Sương (MongoDB Live) */
+.cloud-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #1e4631;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 6px 14px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #f7fdf9 0%, #e1f4e8 100%);
+  border-top: 1.5px solid #ffffff;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1.5px solid #b5dec4;
+  border-bottom: 2.5px solid #8cc7a3;
+  border-radius: 999px;
+  box-shadow: 0 3px 7px rgba(21, 94, 58, 0.09);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.leaf-accent {
+  color: #15803d;
+  flex-shrink: 0;
+}
+
+.live-dot {
+  width: 7.5px;
+  height: 7.5px;
+  background: #16a34a;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.22);
+  animation: dew-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes dew-pulse {
+  0%, 100% { box-shadow: 0 0 0 2.5px rgba(22, 163, 74, 0.2); }
+  50% { box-shadow: 0 0 0 5px rgba(22, 163, 74, 0.34); }
+}
+
+/* Thẻ Đá Cuội Nhân Viên */
+.profile-chip {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  padding: 5px 14px 5px 6px;
+  border-top: 1.5px solid #ffffff;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1.5px solid #cfc6b6;
+  border-bottom: 3px solid #b3a895;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #efe9dd 100%);
+  border-radius: 999px;
+  color: #1f1c18;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 3px 8px rgba(45, 35, 22, 0.1);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-chip:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4px;
+  box-shadow: 0 6px 12px rgba(45, 35, 22, 0.14);
+}
+
+.profile-chip:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 1.5px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  width: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.4), transparent 55%),
+    linear-gradient(135deg, #0ea5e9, #0369a1);
+  border-top: 1px solid rgba(255, 255, 255, 0.7);
+  border-bottom: 1.5px solid #083344;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Nút Menu 3 Gạch Chạm Khắc Gỗ Teak (GỖ TỰ NHIÊN) */
+.menu-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 39px;
+  padding: 0 14px;
+  border-radius: 12px;
+  color: #3a210c;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #f5e2c0 0%, #e3c18d 52%, #cfa46b 100%);
+  border-top: 1.5px solid rgba(255, 251, 242, 0.92);
+  border-left: 1px solid rgba(255, 247, 232, 0.78);
+  border-right: 1.5px solid #b5854d;
+  border-bottom: 3.5px solid #7f5328;
+  box-shadow:
+    0 4px 10px rgba(92, 58, 24, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 245, 226, 0.75);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.menu-toggle-btn:hover {
+  transform: translateY(-2px);
+  border-bottom-width: 4.5px;
+  color: #241304;
+  filter: brightness(1.03);
+  box-shadow: 0 7px 15px rgba(92, 58, 24, 0.24);
+}
+
+.menu-toggle-btn:active {
+  transform: translateY(2px) scale(0.97);
+  border-bottom-width: 1.5px;
+  box-shadow: inset 0 2px 5px rgba(60, 35, 10, 0.28);
+}
 
 /* ==========================================================================
-   TONE PALETTE - SOFT, TACTILE PASTEL DECORATIONS ("nhưng nhạt thôi")
-   Colors specified: đỏ, cam, vàng, lục, chàm, tím, xám, hồng + xanh da trời
+   NGĂN TRƯỢT MENU 3 GẠCH: TỦ GỖ TEAK · ĐÁ CUỘI · KÍNH BIỂN
    ========================================================================== */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(14, 34, 48, 0.46);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  justify-content: flex-end;
+}
 
-/* Vàng nhạt (Yellow) - Ca A */
+.drawer-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-panel {
+  width: min(395px, 88vw);
+  height: 100%;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #faf7f0 0%, #f2ece0 56%, #e7dfd0 100%);
+  border-left: 3px solid #d7b27d;
+  box-shadow: -12px 0 34px rgba(12, 28, 40, 0.3);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 22px 20px;
+  overflow-y: auto;
+}
+
+.drawer-backdrop.is-open .drawer-panel {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 15px;
+  margin-bottom: 16px;
+  border-radius: 15px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #f3dfb9 0%, #e0be8b 58%, #cfa56e 100%);
+  border-top: 1.5px solid rgba(255, 250, 238, 0.9);
+  border-bottom: 3.5px solid #86582d;
+  box-shadow: 0 4px 10px rgba(85, 52, 20, 0.14);
+}
+
+.drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.drawer-title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  color: #2b1808;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+  text-shadow: 0 1px 0 rgba(255, 245, 228, 0.75);
+}
+
+.drawer-title span {
+  color: #0369a1;
+}
+
+.drawer-subtitle {
+  font-size: 11px;
+  color: #5a391b;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 2px;
+}
+
+.drawer-close-btn {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #3d240e;
+  background: linear-gradient(180deg, #fffaf0 0%, #edd7b4 100%);
+  border-top: 1.5px solid #ffffff;
+  border-bottom: 2.5px solid #9e7142;
+  border-left: 1px solid rgba(255, 255, 255, 0.8);
+  border-right: 1.5px solid #c39a6b;
+  box-shadow: 0 2px 5px rgba(60, 35, 10, 0.14);
+  transition: all 0.15s ease;
+}
+
+.drawer-close-btn:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 3.5px;
+}
+
+.drawer-close-btn:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 1px;
+}
+
+.drawer-user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f2faff 0%, #dff1fb 100%);
+  border-top: 1.5px solid #ffffff;
+  border-bottom: 2.5px solid #93c5fd;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1.5px solid #bae6fd;
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.09);
+  margin-bottom: 18px;
+}
+
+.drawer-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.drawer-user-info strong {
+  font-size: 14px;
+  color: #0c2e44;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-user-info span {
+  font-size: 12px;
+  color: #0369a1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.drawer-group-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  color: #0f766e;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.drawer-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.drawer-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #f7f3eb 60%, #ece5d7 100%);
+  border-top: 1.5px solid #ffffff;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1.5px solid #d6cebe;
+  border-bottom: 3.5px solid #bab09d;
+  box-shadow: 0 3px 7px rgba(55, 42, 26, 0.09);
+  text-align: left;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.drawer-tab-btn:hover {
+  transform: translateY(-2px);
+  border-bottom-width: 4.5px;
+  box-shadow: 0 7px 14px rgba(55, 42, 26, 0.13);
+}
+
+.drawer-tab-btn:active {
+  transform: translateY(2px) scale(0.985);
+  border-bottom-width: 1.5px;
+}
+
+.drawer-tab-btn.active {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.22), transparent 55%),
+    linear-gradient(145deg, #0ea5e9 0%, #0284c7 55%, #075985 100%);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-left: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-right: 1.5px solid #083344;
+  border-bottom: 2.5px solid #083344;
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.25),
+    0 4px 14px rgba(2, 132, 199, 0.38);
+  color: #ffffff;
+  transform: translateY(1.5px);
+}
+
+.drawer-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.65);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.icon-teal { background: linear-gradient(135deg, #14b8a6, #0f766e); color: #fff; }
+.icon-blue { background: linear-gradient(135deg, #0ea5e9, #0369a1); color: #fff; }
+.icon-amber { background: linear-gradient(135deg, #d97706, #9a5b13); color: #fff; }
+.icon-violet { background: linear-gradient(135deg, #0284c7, #1e3a5f); color: #fff; }
+
+.drawer-tab-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.drawer-tab-text strong {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.drawer-tab-text small {
+  font-size: 11px;
+  color: #787066;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.drawer-tab-btn.active .drawer-tab-text small {
+  color: #e0f2fe;
+}
+
+.drawer-tab-pill {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #efe9dc;
+  color: #0369a1;
+  border: 1px solid #d4cab8;
+}
+
+.drawer-tab-btn.active .drawer-tab-pill {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.42);
+}
+
+.drawer-actions {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1.5px solid rgba(185, 168, 142, 0.55);
+}
+
+.drawer-action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #f6e5c7 0%, #e4c594 100%);
+  border-top: 1.5px solid rgba(255, 252, 245, 0.9);
+  border-bottom: 3px solid #8a5c30;
+  border-left: 1px solid rgba(255, 248, 235, 0.8);
+  border-right: 1.5px solid #be925d;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3a210c;
+  box-shadow: 0 3px 7px rgba(80, 48, 18, 0.14);
+  transition: all 0.15s ease;
+}
+
+.drawer-action-link:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4px;
+}
+
+.drawer-action-link:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 1px;
+}
+
+/* ==========================================================================
+   WELCOME BANNER: TIÊU ĐỀ KHẮC NỔI & THẺ KÍNH NƯỚC BIỂN
+   ========================================================================== */
+.welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 0 20px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: #0f766e;
+  font-size: 11px;
+  letter-spacing: 0.9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.welcome h1 {
+  margin: 0;
+  color: #16242f;
+  font-family: var(--font-heading);
+  font-size: 27px;
+  letter-spacing: -0.6px;
+  line-height: 1.28;
+  font-weight: 800;
+  text-shadow: 0 1.5px 0 rgba(255, 255, 255, 0.9), 0 3px 8px rgba(14, 65, 98, 0.08);
+}
+
+.welcome h1 span {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 55%, #0f766e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+.welcome p {
+  margin: 5px 0 0;
+  color: #3f4e59;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.welcome-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 15px;
+  color: #2e2924;
+  border-top: 1.5px solid #ffffff;
+  border-bottom: 3px solid #b5ab98;
+  border-left: 1px solid rgba(255, 255, 255, 0.9);
+  border-right: 1.5px solid #d1c8b8;
+  border-radius: 13px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #eee8dc 100%);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 4px 10px rgba(45, 38, 28, 0.09);
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.stat-pill svg {
+  color: #0284c7;
+}
+
+/* Thẻ Mặt Nước Ngọc Lam (Lagoon Sea-Glass Pill) */
+.highlight-pill {
+  background:
+    radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.85), transparent 60%),
+    linear-gradient(180deg, #ecfeff 0%, #c8ecfb 60%, #a5def7 100%);
+  border-top: 1.5px solid #ffffff;
+  border-right: 1.5px solid #7dd3fc;
+  border-bottom: 3px solid #38bdf8;
+  color: #075985;
+  box-shadow:
+    0 5px 14px rgba(14, 165, 233, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+.highlight-pill strong {
+  font-weight: 800;
+  color: #0c4a6e;
+}
+
+/* ==========================================================================
+   THANH CHỌN TUẦN / THÁNG: THANH GỖ TEAK & GỖ LŨA CHẠM KHẮC (GỖ THẬT)
+   ========================================================================== */
+.week-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+  padding: 15px 22px;
+  border-top: 2px solid rgba(255, 250, 240, 0.88);
+  border-left: 1.5px solid rgba(255, 245, 228, 0.72);
+  border-right: 2px solid #b5844c;
+  border-bottom: 4.5px solid #7e5227;
+  border-radius: 17px;
+  background:
+    radial-gradient(circle at 12px 12px, rgba(95, 56, 20, 0.28) 2px, rgba(255, 245, 225, 0.5) 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 12px) 12px, rgba(95, 56, 20, 0.28) 2px, rgba(255, 245, 225, 0.5) 3px, transparent 4px),
+    var(--wood-fibers),
+    linear-gradient(180deg, #f3dfb9 0%, #e4c493 52%, #d4ac74 100%);
+  box-shadow:
+    0 9px 20px -4px rgba(72, 46, 18, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.week-selector > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.week-selector-label {
+  color: #5c3918;
+  font-size: 10.5px;
+  letter-spacing: 0.9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 rgba(255, 246, 230, 0.7);
+}
+
+.week-selector strong {
+  color: #261405;
+  font-size: 15px;
+  font-weight: 800;
+  word-break: break-word;
+  text-shadow: 0 1px 0 rgba(255, 246, 230, 0.72);
+}
+
+.week-selector-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Rãnh Gỗ Khắc Lõm Chọn Tuần */
+.week-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  background: linear-gradient(180deg, #cca068 0%, #d8b27e 100%);
+  border: 1px solid #9e6e3b;
+  border-top: 1.5px solid #86592b;
+  border-bottom: 1.5px solid rgba(255, 248, 235, 0.78);
+  border-radius: 11px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b220c;
+  box-shadow: inset 0 2.5px 5px rgba(74, 43, 13, 0.25);
+  cursor: pointer;
+}
+
+.week-picker input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1f1003;
+  cursor: pointer;
+}
+
+.week-controls {
+  display: flex;
+  gap: 8px;
+}
+
+/* Nút Mũi Tên Gỗ Đẽo 3D */
+.week-controls button {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  color: #2f1a08;
+  border-top: 1.5px solid rgba(255, 252, 245, 0.92);
+  border-left: 1px solid rgba(255, 248, 235, 0.8);
+  border-right: 1.5px solid #b5844c;
+  border-bottom: 3.5px solid #784c22;
+  border-radius: 11px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #faecd2 0%, #e7c99a 60%, #d7b17b 100%);
+  box-shadow: 0 3px 6px rgba(65, 38, 12, 0.16);
+  transition: all 0.14s ease;
+}
+
+.week-controls button:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4.5px;
+  color: #0369a1;
+  filter: brightness(1.04);
+}
+
+.week-controls button:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 1.5px;
+  box-shadow: inset 0 2px 4px rgba(55, 32, 10, 0.25);
+}
+
+/* ==========================================================================
+   BỐ CỤC CHÍNH & PHIẾN ĐÁ VÔI BIỂN MÀI NHẴN (ĐÁ + VIỀN NƯỚC & RÊU)
+   ========================================================================== */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.58fr) minmax(320px, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.main-column,
+.side-column {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+
+.panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #fbf9f3 58%, #f2ece0 100%);
+  border-top: 2px solid #ffffff;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.92);
+  border-right: 2px solid #d4cbb9;
+  border-bottom: 5px solid #b8ae9a;
+  border-radius: 20px;
+  box-shadow:
+    0 12px 26px -6px rgba(52, 42, 28, 0.13),
+    0 3px 8px rgba(15, 45, 68, 0.05);
+  padding: 24px;
+}
+
+/* Viền khảm Ngọc Nước Biển & Lá Rừng ở mép trên phiến đá */
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 22px;
+  right: 22px;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(90deg, rgba(14, 165, 233, 0.55), rgba(20, 184, 166, 0.5), rgba(212, 163, 115, 0.55));
+  pointer-events: none;
+}
+
+/* HEADINGS */
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.heading-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-bottom: 2.5px solid rgba(0, 0, 0, 0.14);
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.07);
+}
+
+.heading-icon-blue {
+  color: #0369a1;
+  background: linear-gradient(180deg, #ecfeff, #bae6fd);
+  border-bottom-color: #7dd3fc;
+}
+
+.heading-icon-teal {
+  color: #0f766e;
+  background: linear-gradient(180deg, #f0fdfa, #bbf7d0);
+  border-bottom-color: #6ee7b7;
+}
+
+.heading-icon-violet {
+  color: #6c4318;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #faeed7, #e5c696);
+  border-bottom-color: #b5844c;
+}
+
+.section-heading h2,
+.records-heading h2 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 17.5px;
+  letter-spacing: -0.3px;
+  color: #1b242c;
+  font-weight: 800;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.section-heading p,
+.records-heading p {
+  margin: 2px 0 0;
+  color: #6e665c;
+  font-size: 12px;
+  font-weight: 500;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+/* Nút Nhanh "+ Ghi ca" Khảm Ngọc Rừng & Nước Biển */
+.quick-entry-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  border-radius: 11px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255, 255, 255, 0.3), transparent 55%),
+    linear-gradient(145deg, #0d9488 0%, #0f766e 55%, #115e59 100%);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.55);
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+  border-right: 1.5px solid #134e4a;
+  border-bottom: 3px solid #042f2e;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(15, 118, 110, 0.26);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+}
+
+.quick-entry-btn:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4px;
+  filter: brightness(1.05);
+  box-shadow: 0 6px 14px rgba(15, 118, 110, 0.34);
+}
+
+.quick-entry-btn:active {
+  transform: translateY(1.5px);
+  border-bottom-width: 1.5px;
+}
+
+.step-tag {
+  margin-left: auto;
+  align-self: flex-start;
+  padding: 4px 10px;
+  color: #0369a1;
+  background: linear-gradient(180deg, #f0f9ff, #d8effc);
+  border-top: 1px solid #ffffff;
+  border-bottom: 2px solid #7dd3fc;
+  border-radius: 8px;
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  font-weight: 800;
+}
+
+/* ==========================================================================
+   Ô NHẬP LIỆU RÃNH ĐÁ CÁT KHẮC LÕM
+   ========================================================================== */
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.field-label {
+  color: #29231d;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.field-label span {
+  color: #787066;
+  font-weight: 500;
+}
+
+.input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #e5ddd0 0%, #efe9dd 100%);
+  border: 1px solid #c3b9a7;
+  border-top: 1.5px solid #aea390;
+  border-bottom: 1.5px solid #ffffff;
+  border-radius: 12px;
+  color: #0369a1;
+  box-shadow:
+    inset 0 2.5px 5px rgba(55, 42, 26, 0.15),
+    0 1px 0 #ffffff;
+  transition: all 0.16s ease;
+}
+
+.input-wrap:focus-within {
+  border-color: #0ea5e9;
+  background: #f8fdff;
+  box-shadow:
+    inset 0 2px 4px rgba(14, 165, 233, 0.16),
+    0 0 0 3.5px rgba(14, 165, 233, 0.18);
+}
+
+.input-wrap input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #1c1917;
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.input-wrap input::placeholder {
+  color: #9c9386;
+  font-weight: 500;
+}
+
+.name-input { flex: 1 1 180px; }
+.date-label { margin-left: 6px; }
+.date-input { flex: 0 1 180px; }
+
+/* ==========================================================================
+   SỎI NGỌC KHOÁNG SẢN 9 CA LÀM (MÀU NHẠT TỰ NHIÊN)
+   ========================================================================== */
+.shift-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.shift-title-row h3 {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #1c1917;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.shift-title-row p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: #787066;
+}
+
+.hours-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  color: #075985;
+  border-top: 1px solid #ffffff;
+  border-bottom: 2.5px solid #7dd3fc;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ecfeff, #d2eefc);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hours-chip.hours-over {
+  color: #991b1b;
+  border-bottom-color: #fca5a5;
+  background: linear-gradient(180deg, #fef2f2, #fecaca);
+}
+
+/* 9 Tông Đá Cuội & Ngọc Tự Nhiên Nhạt */
 .tone-yellow {
-  --tone-bg: #fefce8;
-  --tone-bg-hover: #fef9c3;
-  --tone-ink: #854d0e;
-  --tone-border: #fef08a;
-  --tone-subtle: rgba(234, 179, 8, 0.06);
-  --tone-glow: rgba(234, 179, 8, 0.22);
+  --stone-bg: linear-gradient(145deg, #fffef0, #fde68a);
+  --stone-ink: #854d0e;
+  --stone-border: #fcd34d;
+  --stone-border-active: #eab308;
+  --stone-glow: rgba(234, 179, 8, 0.42);
 }
 
-/* Lục nhạt (Green / Mint) - Ca B */
 .tone-green {
-  --tone-bg: #f0fdf4;
-  --tone-bg-hover: #dcfce7;
-  --tone-ink: #166534;
-  --tone-border: #bbf7d0;
-  --tone-subtle: rgba(34, 197, 94, 0.06);
-  --tone-glow: rgba(34, 197, 94, 0.2);
+  --stone-bg: linear-gradient(145deg, #f2fdf6, #bbf7d0);
+  --stone-ink: #166534;
+  --stone-border: #86efac;
+  --stone-border-active: #22c55e;
+  --stone-glow: rgba(34, 197, 94, 0.42);
 }
 
-/* Đỏ nhạt (Red / Coral) - Ca C */
-.tone-red, .tone-cyan {
-  --tone-bg: #fef2f2;
-  --tone-bg-hover: #fee2e2;
-  --tone-ink: #991b1b;
-  --tone-border: #fecaca;
-  --tone-subtle: rgba(239, 68, 68, 0.05);
-  --tone-glow: rgba(239, 68, 68, 0.2);
+.tone-red,
+.tone-cyan {
+  --stone-bg: linear-gradient(145deg, #fff5f5, #fecaca);
+  --stone-ink: #991b1b;
+  --stone-border: #fca5a5;
+  --stone-border-active: #ef4444;
+  --stone-glow: rgba(239, 68, 68, 0.42);
 }
 
-/* Chàm nhạt (Indigo / Slate) - Ca F2 */
-.tone-indigo, .tone-blue {
-  --tone-bg: #eef2ff;
-  --tone-bg-hover: #e0e7ff;
-  --tone-ink: #3730a3;
-  --tone-border: #c7d2fe;
-  --tone-subtle: rgba(99, 102, 241, 0.06);
-  --tone-glow: rgba(99, 102, 241, 0.2);
+.tone-indigo,
+.tone-blue {
+  --stone-bg: linear-gradient(145deg, #f2f5ff, #c7d2fe);
+  --stone-ink: #3730a3;
+  --stone-border: #a5b4fc;
+  --stone-border-active: #6366f1;
+  --stone-glow: rgba(99, 102, 241, 0.42);
 }
 
-/* Cam nhạt (Orange / Peach) - Ca F1 */
 .tone-orange {
-  --tone-bg: #fff7ed;
-  --tone-bg-hover: #ffedd5;
-  --tone-ink: #9a3412;
-  --tone-border: #fed7aa;
-  --tone-subtle: rgba(249, 115, 22, 0.06);
-  --tone-glow: rgba(249, 115, 22, 0.2);
+  --stone-bg: linear-gradient(145deg, #fff9f2, #fed7aa);
+  --stone-ink: #9a3412;
+  --stone-border: #fdba74;
+  --stone-border-active: #f97316;
+  --stone-glow: rgba(249, 115, 22, 0.42);
 }
 
-/* Xanh da trời nhạt (Sky Blue / Thiên thanh) - Ca BC */
 .tone-sky {
-  --tone-bg: #f0f9ff;
-  --tone-bg-hover: #e0f2fe;
-  --tone-ink: #075985;
-  --tone-border: #bae6fd;
-  --tone-subtle: rgba(14, 165, 233, 0.06);
-  --tone-glow: rgba(14, 165, 233, 0.2);
+  --stone-bg: linear-gradient(145deg, #f0fbff, #bae6fd);
+  --stone-ink: #0369a1;
+  --stone-border: #7dd3fc;
+  --stone-border-active: #0ea5e9;
+  --stone-glow: rgba(14, 165, 233, 0.45);
 }
 
-/* Hồng nhạt (Pink / Rose) - Ca FA */
-.tone-pink, .tone-lime {
-  --tone-bg: #fdf2f8;
-  --tone-bg-hover: #fce7f3;
-  --tone-ink: #9d174d;
-  --tone-border: #fbcfe8;
-  --tone-subtle: rgba(236, 72, 153, 0.06);
-  --tone-glow: rgba(236, 72, 153, 0.2);
+.tone-pink,
+.tone-lime {
+  --stone-bg: linear-gradient(145deg, #fff5fa, #fbcfe8);
+  --stone-ink: #9d174d;
+  --stone-border: #f9a8d4;
+  --stone-border-active: #ec4899;
+  --stone-glow: rgba(236, 72, 153, 0.42);
 }
 
-/* Tím nhạt (Purple / Lavender) - Ca FB */
-.tone-purple, .tone-sage {
-  --tone-bg: #faf5ff;
-  --tone-bg-hover: #f3e8ff;
-  --tone-ink: #6b21a8;
-  --tone-border: #e9d5ff;
-  --tone-subtle: rgba(168, 85, 247, 0.06);
-  --tone-glow: rgba(168, 85, 247, 0.2);
+.tone-purple,
+.tone-sage {
+  --stone-bg: linear-gradient(145deg, #fbf7ff, #e9d5ff);
+  --stone-ink: #6b21a8;
+  --stone-border: #d8b4fe;
+  --stone-border-active: #a855f7;
+  --stone-glow: rgba(168, 85, 247, 0.42);
 }
 
-/* Xám nhạt (Gray / Mist) - Ca O (Nghỉ) */
-.tone-gray, .tone-rest {
-  --tone-bg: #f8fafc;
-  --tone-bg-hover: #f1f5f9;
-  --tone-ink: #334155;
-  --tone-border: #e2e8f0;
-  --tone-subtle: rgba(100, 116, 139, 0.04);
-  --tone-glow: rgba(100, 116, 139, 0.16);
+.tone-gray,
+.tone-rest {
+  --stone-bg: linear-gradient(145deg, #f8fafc, #e2e8f0);
+  --stone-ink: #334155;
+  --stone-border: #cbd5e1;
+  --stone-border-active: #94a3b8;
+  --stone-glow: rgba(148, 163, 184, 0.36);
 }
 
-/* SHIFT GRID & TACTILE CARDS */
-.shift-grid { 
-  display: grid; 
-  grid-template-columns: repeat(3, minmax(0, 1fr)); 
-  gap: 10px; 
+/* Khay Gỗ-Đá Chứa 9 Phím Đá Khắc Ca Làm */
+.shift-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+  padding: 11px;
+  border-radius: 17px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #e5dac7 0%, #ece4d5 100%);
+  border-top: 1.5px solid #c2b6a0;
+  border-bottom: 1.5px solid #ffffff;
+  box-shadow: inset 0 3px 7px rgba(58, 42, 22, 0.15);
 }
 
-.shift-card { 
-  position: relative; 
-  min-width: 0; 
-  display: grid; 
-  grid-template-columns: 36px 1fr; 
-  grid-template-rows: auto auto; 
-  align-items: center; 
-  column-gap: 11px; 
-  row-gap: 3px; 
-  text-align: left; 
-  padding: 10px 12px 10px 11px; 
-  border: 1px solid rgba(205, 224, 236, 0.85); 
-  border-radius: 12px; 
-  background: linear-gradient(180deg, #ffffff 0%, #fafdff 100%); 
-  cursor: pointer; 
-  box-shadow: 
-    0 1px 2px rgba(15, 42, 66, 0.035),
-    0 4px 10px rgba(15, 42, 66, 0.025),
-    inset 0 1px 0 #ffffff;
-  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1),
-              border-color 0.18s ease,
-              box-shadow 0.18s ease,
-              background 0.18s ease;
+.shift-card {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 13px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #faf7f1 58%, #ece5d8 100%);
+  border-top: 2px solid #ffffff;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.92);
+  border-right: 2px solid #d1c8b7;
+  border-bottom: 4px solid #b5ab98;
+  border-radius: 14px;
+  box-shadow: 0 4px 9px -2px rgba(60, 45, 28, 0.14);
+  transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.16s ease, border-color 0.16s ease;
+  overflow: hidden;
 }
 
-.shift-card:hover { 
-  transform: translateY(-2px); 
-  border-color: rgba(56, 189, 248, 0.5); 
-  background: linear-gradient(180deg, #ffffff 0%, var(--tone-subtle, #f0f9ff) 100%);
-  box-shadow: 
-    0 6px 16px -2px rgba(2, 132, 199, 0.12),
-    0 2px 6px rgba(2, 132, 199, 0.04),
-    inset 0 1px 0 #ffffff; 
+.shift-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
+  transform: skewX(-25deg);
+  pointer-events: none;
+}
+
+.shift-card:hover::after {
+  animation: light-sweep 0.68s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes light-sweep {
+  0% { left: -120%; }
+  100% { left: 165%; }
+}
+
+.shift-card:hover {
+  transform: translateY(-2.5px);
+  border-bottom-width: 5px;
+  box-shadow: 0 9px 18px -3px rgba(60, 45, 28, 0.19);
 }
 
 .shift-card:active {
-  transform: translateY(0);
+  transform: translateY(2px) scale(0.985);
+  border-bottom-width: 1.5px;
 }
 
-.shift-card.is-selected { 
-  border-color: #0284c7; 
-  background: linear-gradient(180deg, #ffffff 0%, var(--tone-subtle, #f0f9ff) 55%, rgba(224, 242, 254, 0.45) 100%); 
-  box-shadow: 
-    0 0 0 2px #38bdf8,
-    0 8px 22px -3px rgba(2, 132, 199, 0.22),
-    inset 0 1px 0 #ffffff; 
+/* Ấn Lún Ngập Ánh Nước & Hào Quang Ngọc Khi Chọn */
+.shift-card.is-selected {
+  transform: translateY(2px);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.9), transparent 60%),
+    linear-gradient(180deg, #f2fbff 0%, #dcf2fd 100%);
+  border-top: 1.5px solid var(--stone-border-active, #0ea5e9);
+  border-left: 1.5px solid var(--stone-border-active, #0ea5e9);
+  border-right: 1.5px solid var(--stone-border-active, #0284c7);
+  border-bottom: 2px solid var(--stone-border-active, #7dd3fc);
+  box-shadow:
+    inset 0 3px 6px rgba(2, 105, 161, 0.14),
+    0 0 16px var(--stone-glow, rgba(14, 165, 233, 0.38));
 }
 
-/* SHIFT CODE BADGE - REALISTIC SOFT PASTEL TILE */
-.shift-code { 
-  grid-column: 1; 
-  grid-row: 1 / 3; 
-  display: grid; 
-  place-items: center; 
-  width: 36px; 
-  height: 36px; 
-  border-radius: 10px; 
-  color: var(--tone-ink); 
-  background: linear-gradient(145deg, var(--tone-bg-hover), var(--tone-bg)); 
-  border: 1px solid var(--tone-border);
-  box-shadow: 
-    0 2px 4px var(--tone-glow),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
-  font-family: Manrope, sans-serif; 
-  font-size: 13px; 
-  font-weight: 800; 
-  letter-spacing: -0.3px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-.shift-card:hover .shift-code { transform: scale(1.04); }
-
-.shift-time { 
-  color: #17384f; 
-  font-size: 11px; 
-  font-weight: 700; 
-  white-space: nowrap; 
-  letter-spacing: -0.15px;
-}
-.shift-hours { color: #647d92; font-size: 9.5px; font-weight: 500; }
-
-.shift-check { 
-  position: absolute; 
-  top: 7px; 
-  right: 7px; 
-  display: grid; 
-  place-items: center; 
-  width: 17px; 
-  height: 17px; 
-  border-radius: 50%; 
-  color: #ffffff; 
-  background: linear-gradient(135deg, #0284c7, #0369a1); 
-  box-shadow: 0 2px 5px rgba(2, 132, 199, 0.35); 
-  opacity: 0; 
-  transform: scale(0.65);
-  transition: opacity 0.16s ease, transform 0.16s ease;
-}
-.is-selected .shift-check { opacity: 1; transform: scale(1); }
-
-.inline-warning { margin-top: 9px; color: #dc2626; font-size: 10.5px; font-weight: 600; }
-
-.field-block { display: grid; gap: 7px; }
-.coworkers-block { margin-top: 20px; }
-.field-label span { color: #7890a0; font-weight: 500; }
-.full-input { width: 100%; }
-.field-hint { color: #7890a0; font-size: 10px; }
-
-/* ENTRY FOOTER & BUTTONS */
-.entry-footer { 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  gap: 12px; 
-  margin-top: 20px; 
-  padding-top: 16px; 
-  border-top: 1px solid rgba(215, 230, 240, 0.8); 
-}
-.selected-summary { display: flex; align-items: center; gap: 8px; color: #47667c; font-size: 11px; font-weight: 600; }
-.selected-summary svg { color: #0284c7; }
-
-.primary-button, .rate-button, .export-button { 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  gap: 8px; 
-  border: 0; 
-  border-radius: 10px; 
-  cursor: pointer; 
-  font-weight: 700; 
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; 
+/* Viên Sỏi Ngọc Khắc Chữ Ca */
+.shift-code {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  color: var(--stone-ink);
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255, 255, 255, 0.78), transparent 52%),
+    var(--stone-bg);
+  border: 1.5px solid var(--stone-border);
+  border-bottom-width: 2.5px;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 2px 5px rgba(45, 35, 20, 0.1);
+  font-family: var(--font-heading);
+  font-size: 14.5px;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
-.primary-button { 
-  padding: 12px 18px; 
-  color: #ffffff; 
-  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); 
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 4px 14px rgba(2, 132, 199, 0.35),
-    0 1px 3px rgba(2, 132, 199, 0.2); 
-  font-size: 11.5px; 
-  letter-spacing: -0.1px;
-}
-.primary-button:hover:not(:disabled), .rate-button:hover:not(:disabled) { 
-  transform: translateY(-1.5px); 
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 7px 20px rgba(2, 132, 199, 0.42),
-    0 2px 4px rgba(2, 132, 199, 0.2); 
-}
-.primary-button:active:not(:disabled), .rate-button:active:not(:disabled) {
-  transform: translateY(0.5px);
-}
-button:disabled { cursor: not-allowed; opacity: 0.5; }
-
-/* WEEK VIEW PANEL */
-.week-panel { padding: 22px 26px 18px; }
-.week-heading { margin-bottom: 20px; }
-
-.week-days { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 8px; }
-.day-card { 
-  display: flex; 
-  flex-direction: column; 
-  align-items: flex-start; 
-  min-width: 0; 
-  min-height: 104px; 
-  padding: 10px 9px; 
-  text-align: left; 
-  border: 1px solid #e0ecf2; 
-  border-radius: 11px; 
-  background: #ffffff; 
-  box-shadow: 0 1px 3px rgba(15, 45, 70, 0.025), inset 0 1px 0 #ffffff;
-  cursor: pointer; 
-  transition: all 0.16s ease; 
-}
-.day-card:hover { 
-  transform: translateY(-2px);
-  border-color: #7dd3fc; 
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.1), inset 0 1px 0 #ffffff;
-}
-.day-card.day-selected { 
-  border-color: #0284c7; 
-  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%); 
-  box-shadow: 
-    0 0 0 2px #38bdf8,
-    0 4px 14px rgba(2, 132, 199, 0.14),
-    inset 0 1px 0 #ffffff; 
+.shift-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
 }
 
-.day-name { color: #6b8496; font-size: 8.5px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
-.day-number { margin: 6px 0 4px; color: #173b52; font-family: Manrope, sans-serif; font-size: 17.5px; font-weight: 800; }
-.day-meta { max-width: 100%; overflow: hidden; color: #0284c7; font-size: 8.5px; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
-.empty-meta { color: #9ab0be; font-weight: 500; }
-.day-hours { margin-top: auto; color: #58778c; font-size: 9.5px; font-weight: 600; }
-.day-has-work .day-number { color: #0284c7; }
+.shift-time {
+  color: #1c1917;
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+}
 
-.week-total-row { 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  margin-top: 16px; 
-  padding-top: 14px; 
-  border-top: 1px solid rgba(215, 230, 240, 0.85); 
-  color: #48687d; 
-  font-size: 12px; 
+.shift-hours {
+  color: #6e665c;
+  font-size: 12px;
   font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
 }
-.week-total-row > span { display: flex; align-items: center; gap: 8px; }
-.total-dot { width: 8px; height: 8px; border-radius: 50%; background: #0284c7; box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.2); }
-.week-total-row strong { color: #0f3d59; font-family: Manrope, sans-serif; font-size: 19px; font-weight: 800; }
-.week-total-row small { color: #688597; font-family: 'DM Sans',sans-serif; font-size: 11px; font-weight: 600; }
 
-/* PAY CARD (KỲ LƯƠNG) - DEEP OCEAN MOUNTAIN LAKE */
-.pay-card { 
+.shift-check {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 60%, #075985 100%);
+  border-top: 1px solid rgba(255, 255, 255, 0.75);
+  border-bottom: 2px solid #083344;
+  box-shadow: 0 3px 6px rgba(2, 132, 199, 0.4);
+  opacity: 0;
+  transform: scale(0.4) rotate(-30deg);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.is-selected .shift-check {
+  opacity: 1;
+  animation: seal-stamp-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes seal-stamp-pop {
+  0% { opacity: 0; transform: scale(0.3) rotate(-35deg); }
+  65% { opacity: 1; transform: scale(1.28) rotate(8deg); }
+  85% { transform: scale(0.92) rotate(-3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.inline-warning {
+  margin-top: 10px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-block {
+  display: grid;
+  gap: 6px;
+}
+
+.coworkers-block {
+  margin-top: 22px;
+}
+
+.field-hint {
+  color: #787066;
+  font-size: 11px;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+/* ENTRY FOOTER & NÚT ĐÁ LAM BIỂN CHÍNH */
+.entry-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1.5px solid #dfd7c7;
+}
+
+.selected-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #3f3a34;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.selected-summary svg {
+  color: #0284c7;
+}
+
+.primary-button,
+.rate-button,
+.export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 13px;
+  font-weight: 800;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.primary-button {
+  padding: 12px 22px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.32), transparent 55%),
+    linear-gradient(145deg, #0ea5e9 0%, #0284c7 55%, #075985 100%);
+  border-top: 1.5px solid rgba(255, 255, 255, 0.65);
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  border-right: 2px solid #0369a1;
+  border-bottom: 4px solid #083344;
+  box-shadow:
+    0 7px 16px rgba(2, 132, 199, 0.34),
+    0 2px 4px rgba(0, 0, 0, 0.14);
+  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.42);
+  font-size: 13.5px;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-bottom-width: 5px;
+  filter: brightness(1.04);
+  box-shadow: 0 10px 20px rgba(2, 132, 199, 0.42);
+}
+
+.primary-button:active:not(:disabled) {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
+}
+
+.primary-button:disabled,
+.rate-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   CA TRONG TUẦN: KHAY GỖ LŨA LÕM & 7 VIÊN ĐÁ CUỘI / KÍNH NƯỚC BIỂN
+   ========================================================================== */
+.week-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 9px;
+  padding: 11px;
+  border-radius: 17px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #e4d9c5 0%, #ede5d6 100%);
+  border-top: 1.5px solid #bfb39d;
+  border-left: 1px solid #cbc0ab;
+  border-bottom: 1.5px solid #ffffff;
+  box-shadow:
+    inset 0 3px 7px rgba(62, 44, 22, 0.17),
+    0 1px 0 #ffffff;
+}
+
+.day-card {
   position: relative;
   overflow: hidden;
-  padding: 24px 22px 20px; 
-  color: #ffffff; 
-  border-radius: 18px; 
-  background: linear-gradient(145deg, #0d344d 0%, #134e72 45%, #0f3d59 100%); 
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 16px 36px -4px rgba(14, 61, 89, 0.36); 
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  min-height: 114px;
+  padding: 12px 10px;
+  text-align: left;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #ffffff 0%, #faf8f2 58%, #ebe4d6 100%);
+  border-top: 2px solid #ffffff;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-right: 2px solid #d1c8b7;
+  border-bottom: 4px solid #b3a996;
+  border-radius: 14px;
+  box-shadow: 0 4px 8px rgba(55, 42, 26, 0.11);
+  cursor: pointer;
+  transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.pay-card::before {
-  content: '';
+/* Chấm Rêu Ngọc Lục Bảo Cho Ngày Đã Có Công (CÂY & NƯỚC) */
+.day-card.day-has-work::before {
+  content: "";
   position: absolute;
-  inset: 0;
+  top: 9px;
+  right: 9px;
+  width: 6.5px;
+  height: 6.5px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #22c55e, #0d9488);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18);
+}
+
+.day-card:hover {
+  transform: translateY(-2.5px);
+  border-bottom-width: 5px;
+  box-shadow: 0 8px 16px rgba(55, 42, 26, 0.16);
+}
+
+/* Thẻ Ngày Đang Chọn: Viên Đá Kính Ngập Mặt Nước Biển Ngọc Lam */
+.day-card.day-selected {
+  transform: translateY(2px);
+  background:
+    radial-gradient(circle at 30% 15%, rgba(255, 255, 255, 0.92), transparent 58%),
+    linear-gradient(180deg, #ecfeff 0%, #c8edfd 55%, #9dddfb 100%);
+  border-top: 1.5px solid #0ea5e9;
+  border-left: 1.5px solid #0ea5e9;
+  border-right: 1.5px solid #0284c7;
+  border-bottom: 2.5px solid #0369a1;
+  box-shadow:
+    inset 0 2px 5px rgba(2, 132, 199, 0.2),
+    0 0 18px rgba(14, 165, 233, 0.42);
+}
+
+.day-card.day-selected::after {
+  content: "";
+  position: absolute;
+  bottom: -6px;
+  left: -20%;
+  right: -20%;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.52) 0%, transparent 72%);
   pointer-events: none;
-  background-image: 
-    radial-gradient(circle at 90% 10%, rgba(56, 189, 248, 0.25) 0%, transparent 45%),
-    radial-gradient(circle at 10% 90%, rgba(14, 165, 233, 0.16) 0%, transparent 50%);
-  opacity: 0.95;
+  animation: water-glint 3.2s ease-in-out infinite alternate;
 }
 
-.pay-card-top { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 1; }
-.pay-icon { 
-  display: grid; 
-  place-items: center; 
-  width: 38px; 
-  height: 38px; 
-  border: 1px solid rgba(255,255,255,0.22); 
-  border-radius: 12px; 
-  background: rgba(255,255,255,0.12); 
-  backdrop-filter: blur(8px);
-}
-.pay-week { color: rgba(255,255,255,0.72); font-size: 9.5px; letter-spacing: 1.1px; font-weight: 800; text-transform: uppercase; }
-
-.pay-card h2 { 
-  position: relative; 
-  z-index: 1; 
-  margin: 18px 0 5px; 
-  font-family: Manrope, sans-serif; 
-  font-size: clamp(22px, 2.5vw, 28px); 
-  letter-spacing: -0.9px; 
-  font-weight: 800; 
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-.pay-card > p { position: relative; z-index: 1; margin: 0; color: rgba(255,255,255,0.76); font-size: 11px; }
-
-.pay-divider { position: relative; z-index: 1; height: 1px; margin: 18px 0 15px; background: rgba(255,255,255,0.18); }
-.rate-label { position: relative; z-index: 1; display: block; margin-bottom: 8px; color: rgba(255,255,255,0.85); font-size: 10.5px; font-weight: 700; }
-
-.rate-entry { 
-  position: relative; 
-  z-index: 1; 
-  display: flex; 
-  align-items: center; 
-  height: 40px; 
-  padding: 0 12px; 
-  border: 1px solid rgba(255,255,255,0.25); 
-  border-radius: 9px; 
-  background: rgba(7, 42, 69, 0.35); 
-  backdrop-filter: blur(8px);
-  transition: border-color 0.15s ease;
-}
-.rate-entry:focus-within { border-color: rgba(255,255,255,0.75); }
-.rate-entry input { width: 100%; min-width: 0; border: 0; outline: 0; color: #ffffff; background: transparent; font-size: 12.5px; font-weight: 700; }
-.rate-entry input::placeholder { color: rgba(255,255,255,0.48); }
-.rate-entry input::-webkit-inner-spin-button { appearance: none; }
-.rate-entry span { color: rgba(255,255,255,0.68); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
-
-.rate-button { 
-  position: relative; 
-  z-index: 1; 
-  width: 100%; 
-  height: 38px; 
-  margin-top: 10px; 
-  color: #0d344d; 
-  background: #ffffff; 
-  font-size: 10.5px; 
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-.pay-footnote { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; margin-top: 14px; color: rgba(255,255,255,0.68); font-size: 9.5px; }
-.lock-dot { width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.3); }
-
-/* EXPORT PANEL */
-.export-panel { padding: 20px; }
-.export-heading { gap: 11px; }
-.export-heading .heading-icon { width: 36px; height: 36px; border-radius: 11px; }
-.export-heading h2 { font-size: 14.5px; }
-.export-heading p { font-size: 10.5px; }
-
-.export-preview { 
-  position: relative; 
-  margin-top: 16px; 
-  padding: 14px 40px 14px 14px; 
-  min-height: 110px; 
-  border: 1px dashed #cfe0ea; 
-  border-radius: 11px; 
-  background: #f7fbfe; 
-}
-.export-preview pre { 
-  margin: 0; 
-  max-height: 150px; 
-  overflow: auto; 
-  color: #27455c; 
-  font: 10.5px/1.8 'DM Sans', -apple-system, sans-serif; 
-  white-space: pre-wrap; 
-  word-break: break-word; 
+.day-name {
+  color: #726a60;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.copy-button { 
-  position: absolute; 
-  top: 9px; 
-  right: 9px; 
-  display: grid; 
-  place-items: center; 
-  width: 29px; 
-  height: 29px; 
-  color: #647d92; 
-  border: 1px solid #dce8ef; 
-  border-radius: 8px; 
-  background: #ffffff; 
-  cursor: pointer; 
-  box-shadow: 0 1px 2px rgba(15, 45, 70, 0.04);
-  transition: all 0.15s ease;
-}
-.copy-button:hover { color: #0284c7; border-color: #93c5fd; background: #f0f9ff; }
-
-.export-button { 
-  width: 100%; 
-  height: 38px; 
-  margin-top: 11px; 
-  color: #173b52; 
-  border: 1px solid #d4e4ed; 
-  background: #ffffff; 
-  font-size: 10.5px; 
-  box-shadow: 0 1px 3px rgba(15, 45, 70, 0.03);
-}
-.export-button:hover { color: #0284c7; border-color: #7dd3fc; background: #f0f9ff; }
-.export-footnote { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: #7f99aa; font-size: 9.5px; }
-.export-footnote span:first-child { display: flex; align-items: center; gap: 5px; }
-
-/* RECORDS PANEL */
-.records-panel { padding: 18px 20px 16px; }
-.records-heading { display: flex; align-items: center; justify-content: space-between; }
-.records-heading h2 { font-size: 14.5px; }
-.records-heading p { font-size: 10.5px; }
-
-.record-count { 
-  display: grid; 
-  place-items: center; 
-  min-width: 26px; 
-  height: 26px; 
-  padding: 0 7px; 
-  color: #0369a1; 
-  border: 1px solid #bae6fd;
-  border-radius: 8px; 
-  background: #e0f2fe; 
-  font-size: 10.5px; 
-  font-weight: 800; 
+.day-selected .day-name {
+  color: #075985;
 }
 
-.empty-state { 
-  display: flex; 
-  align-items: center; 
-  gap: 12px; 
-  margin-top: 14px; 
-  padding: 16px 14px; 
-  color: #7892a3; 
-  border: 1px dashed #d5e4ec; 
-  border-radius: 10px; 
-  font-size: 10.5px; 
-  line-height: 1.6; 
-  background: #fafdff;
-}
-.empty-illustration { 
-  display: grid; 
-  place-items: center; 
-  width: 36px; 
-  height: 36px; 
-  flex: 0 0 auto; 
-  color: #0284c7; 
-  border-radius: 11px; 
-  background: #e0f2fe; 
+.day-name-full { display: inline; }
+.day-name-short { display: none; }
+.day-hours-full { display: inline; }
+.day-hours-short { display: none; }
+
+.day-number {
+  margin: 4px 0 6px;
+  color: #1f1b18;
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-.record-list { margin-top: 12px; }
-.record-item { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-top: 1px solid #edf4f8; }
-.record-date { 
-  width: 44px; 
-  padding: 0; 
-  color: #0284c7; 
-  border: 0; 
-  background: transparent; 
-  text-align: left; 
-  font-size: 11.5px; 
-  font-weight: 800; 
-  cursor: pointer; 
-}
-.record-date:hover { text-decoration: underline; }
-
-.record-content { display: flex; flex: 1; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-.record-codes { display: flex; flex-wrap: wrap; gap: 4px; }
-
-/* MINI CODE BADGES - HARMONIZED WITH SHIFT TONES */
-.mini-code { 
-  padding: 3px 7px; 
-  color: var(--tone-ink, #0369a1); 
-  background: var(--tone-bg, #e0f2fe); 
-  border: 1px solid var(--tone-border, #bae6fd);
-  border-radius: 6px; 
-  font-family: Manrope, sans-serif;
-  font-size: 9px; 
-  font-weight: 800; 
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+.day-has-work .day-number {
+  color: #0284c7;
 }
 
-.record-hours { color: #173b52; font-size: 9.5px; font-weight: 800; }
-.coworker-names { 
-  display: flex; 
-  align-items: center; 
-  gap: 4px; 
-  flex-basis: 100%; 
-  overflow: hidden; 
-  color: #7b94a5; 
-  font-size: 8.5px; 
-  text-overflow: ellipsis; 
-  white-space: nowrap; 
+.day-selected .day-number {
+  color: #075985;
 }
 
-.delete-button { 
-  display: grid; 
-  place-items: center; 
-  width: 26px; 
-  height: 26px; 
-  margin-top: -2px; 
-  color: #92a7b6; 
-  border: 0; 
-  border-radius: 8px; 
-  background: transparent; 
-  cursor: pointer; 
-  transition: all 0.15s ease;
+.day-meta {
+  max-width: 100%;
+  overflow: hidden;
+  color: #0369a1;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 800;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
-.delete-button:hover { color: #dc2626; background: #fee2e2; }
 
-/* PAYROLL BREAKDOWN */
-.payroll-breakdown { padding: 22px; }
-.payroll-day-list { margin-top: 14px; }
-.payroll-day { 
-  display: grid; 
-  grid-template-columns: minmax(0,1fr) auto auto; 
-  align-items: center; 
-  gap: 12px; 
-  padding: 12px 0; 
-  border-top: 1px solid #edf4f8; 
-}
-.payroll-day > div { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.payroll-day strong { color: #0284c7; font-size: 11.5px; font-weight: 700; }
-.payroll-day > div span { overflow: hidden; color: #6d8697; font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
-.payroll-day-hours { color: #1e3d52; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.payroll-day-amount { color: #059669; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
-
-.monthly-week-list { margin-top: 14px; }
-.monthly-week { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid #edf4f8; }
-.monthly-week > div { display: grid; gap: 4px; min-width: 0; }
-.monthly-week > div strong { color: #0284c7; font-size: 10.5px; }
-.monthly-week > div span { color: #6d8697; font-size: 9.5px; }
-.monthly-week > strong { color: #059669; font-size: 10.5px; font-weight: 800; text-align: right; white-space: nowrap; }
-
-.payroll-total { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  gap: 10px; 
-  margin-top: 10px; 
-  padding-top: 15px; 
-  border-top: 1px solid #e2ecf2; 
-}
-.payroll-total span { color: #58768a; font-size: 10.5px; font-weight: 600; }
-.payroll-total strong { color: #0f3d59; font-family: Manrope, sans-serif; font-size: 18px; font-weight: 800; white-space: nowrap; }
-
-/* NOTICES */
-.notice { 
-  display: flex; 
-  align-items: center; 
-  gap: 10px; 
-  margin: -4px 0 16px; 
-  padding: 11px 14px; 
-  border-radius: 11px; 
-  font-size: 11.5px; 
-  font-weight: 600;
-  box-shadow: 0 2px 8px rgba(15, 45, 70, 0.04);
-}
-.notice > button { margin-left: auto; border: 0; background: transparent; font-size: 19px; cursor: pointer; opacity: 0.6; }
-.notice-error { color: #991b1b; border: 1px solid #fecaca; background: #fef2f2; }
-.notice-success { color: #065f46; border: 1px solid #a7f3d0; background: #ecfdf5; }
-.notice-icon { display: grid; place-items: center; width: 18px; height: 18px; border: 1.5px solid currentColor; border-radius: 50%; font-size: 11px; font-weight: 800; }
-
-/* FOOTER */
-.footer-note { 
-  display: flex; 
-  justify-content: space-between; 
-  padding: 24px 2px 28px; 
-  color: #7b94a5; 
-  font-size: 9.5px; 
+.empty-meta {
+  color: #a39b8f;
   font-weight: 500;
 }
-.footer-cloud { color: #0284c7; }
 
-/* TAB LAYOUT VARIATIONS */
-.entry-tab { grid-template-columns: minmax(0, 1fr); }
-.entry-tab .main-column { max-width: 850px; width: 100%; margin: auto; }
-.entry-tab .side-column { display: none; }
-
-.payroll-tab { grid-template-columns: minmax(0, 1fr); }
-.payroll-tab .main-column { display: none; }
-.payroll-tab .side-column { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: stretch; }
-.payroll-tab .pay-card { min-height: 100%; }
-.monthly-tab { grid-template-columns: minmax(0, 1fr); }
-.monthly-tab .main-column { display: none; }
-.monthly-tab .side-column { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: stretch; }
-.monthly-tab .pay-card { min-height: 100%; }
-
-/* RESPONSIVE DESIGN */
-@media (max-width: 900px) {
-  .page-wrap { width: min(100% - 38px, 700px); }
-  .dashboard-grid { grid-template-columns: 1fr; }
-  .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
-  .pay-card { grid-row: span 2; }
-  .records-panel { grid-column: 2; }
-  .payroll-tab .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .payroll-tab .pay-card { grid-row: auto; }
-  .monthly-tab .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .monthly-tab .pay-card { grid-row: auto; }
+.day-hours {
+  margin-top: auto;
+  color: #3d3832;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
 }
 
-@media (max-width: 620px) {
-  .page-wrap { width: calc(100% - 28px); }
-  .topbar { height: 68px; }
-  .brand { font-size: 19px; }
-  .topbar-right { gap: 8px; }
-  .cloud-label { font-size: 0; gap: 0; padding: 7px; }
-  .live-dot { width: 8px; height: 8px; }
-  .profile-chip { padding-right: 7px; font-size: 0; }
-  .profile-chip svg { display: none; }
-  
-  .welcome { min-height: 150px; padding-top: 18px; }
-  .welcome h1 { font-size: 31px; }
-  .welcome p { max-width: 250px; font-size: 12.5px; line-height: 1.5; }
-  .today-pill { margin-top: 48px; padding: 8px 10px; font-size: 10.5px; }
-  
-  .entry-panel, .week-panel { padding: 18px 15px 15px; }
-  .section-heading h2 { font-size: 14.5px; }
-  .step-tag { display: none; }
-  
-  .identity-row { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 18px 0; }
-  .date-label { margin: 4px 0 0; }
-  .name-input, .date-input { width: 100%; }
-  
-  .shift-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .shift-card { padding: 9px 8px; }
-  .shift-time { font-size: 9.5px; }
-  
-  .selected-summary { font-size: 9.5px; }
-  .primary-button { padding: 11px 13px; font-size: 10.5px; }
-  
-  .week-days { gap: 4px; }
-  .day-card { min-height: 88px; padding: 7px 5px; }
-  .day-name { font-size: 7px; }
-  .day-number { font-size: 15px; }
-  .day-meta { font-size: 7.5px; }
-  .day-hours { font-size: 8.5px; }
-  
-  .side-column { grid-template-columns: 1fr; }
-  .pay-card, .records-panel { grid-row: auto; grid-column: auto; }
-  .payroll-tab .side-column { grid-template-columns: 1fr; }
-  .monthly-tab .side-column { grid-template-columns: 1fr; }
-  .pay-card h2 { font-size: 25px; }
-  
-  .app-tabs { width: 100%; }
-  .app-tabs button { flex: 1 0 auto; padding-inline: 10px; font-size: 10.5px; }
-  
-  .week-selector { padding: 10px 12px; }
-  .week-selector strong { font-size: 11px; }
-  .week-selector-actions { gap: 5px; }
-  .week-picker input { width: 120px; }
-  
-  .payroll-day { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
-  .payroll-day-amount { grid-column: 1 / -1; justify-self: end; margin-top: -3px; }
-  .payroll-total strong { font-size: 15px; }
-  .footer-note { gap: 15px; align-items: flex-start; font-size: 8.5px; }
+.day-selected .day-hours {
+  color: #0c4a6e;
+  font-weight: 800;
+}
+
+/* DÒNG TỔNG GIỜ TUẦN */
+.week-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1.5px solid #dfd7c7;
+  color: #3f3a34;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.week-total-row > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.total-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0ea5e9, #0f766e);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+}
+
+.week-total-row strong {
+  color: #16242f;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 800;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.week-total-row small {
+  color: #726a60;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   THẺ LƯƠNG: PHIẾN ĐÁ BAZAN BIỂN SÂU & ÁNH NƯỚC KHÚC XẠ + NÚT GỖ SÁNG
+   ========================================================================== */
+.pay-card {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  color: #ffffff;
+  border-radius: 20px;
+  background:
+    radial-gradient(ellipse at 78% 8%, rgba(56, 189, 248, 0.25) 0%, transparent 55%),
+    radial-gradient(ellipse at 18% 92%, rgba(20, 184, 166, 0.16) 0%, transparent 50%),
+    linear-gradient(150deg, #0c2638 0%, #123953 48%, #091d2c 100%);
+  border-top: 1.5px solid rgba(125, 211, 252, 0.42);
+  border-left: 1px solid rgba(125, 211, 252, 0.22);
+  border-right: 1.5px solid #082030;
+  border-bottom: 5px solid #05131d;
+  box-shadow:
+    0 14px 30px rgba(7, 24, 38, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.pay-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.pay-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: 12px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.22);
+}
+
+.pay-week {
+  color: #bae6fd;
+  font-size: 10.5px;
+  letter-spacing: 0.85px;
+  font-weight: 800;
+  text-transform: uppercase;
+  text-align: right;
+}
+
+.pay-card h2 {
+  margin: 16px 0 4px;
+  font-family: var(--font-heading);
+  font-size: 28px;
+  letter-spacing: -0.5px;
+  font-weight: 800;
+  color: #ffffff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.42);
+}
+
+.pay-card > p {
+  margin: 0;
+  color: rgba(224, 242, 254, 0.84);
+  font-size: 12.5px;
+}
+
+.pay-divider {
+  height: 1.5px;
+  margin: 18px 0 16px;
+  background: linear-gradient(90deg, rgba(217, 176, 121, 0.55), rgba(125, 211, 252, 0.25), transparent);
+}
+
+.rate-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #f3dfb9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rate-entry {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 11px;
+  background: rgba(4, 16, 26, 0.42);
+  box-shadow: inset 0 2.5px 5px rgba(0, 0, 0, 0.38);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.rate-entry:focus-within {
+  border-color: #38bdf8;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3), 0 0 0 3px rgba(56, 189, 248, 0.22);
+}
+
+.rate-entry input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: #ffffff;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.rate-entry input::placeholder {
+  color: rgba(186, 230, 253, 0.42);
+}
+
+.rate-entry input::-webkit-inner-spin-button {
+  appearance: none;
+}
+
+.rate-entry span {
+  color: #bae6fd;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rate-button {
+  width: 100%;
+  height: 43px;
+  margin-top: 12px;
+  color: #2e1906;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #faecd0 0%, #e5c491 58%, #d4ab72 100%);
+  border-top: 1.5px solid rgba(255, 252, 244, 0.95);
+  border-bottom: 3.5px solid #6e441c;
+  font-size: 13px;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.28);
+  text-shadow: 0 1px 0 rgba(255, 246, 230, 0.72);
+}
+
+.rate-button:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4.5px;
+  filter: brightness(1.04);
+}
+
+.rate-button:active:not(:disabled) {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
+}
+
+.pay-footnote {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  color: rgba(224, 242, 254, 0.76);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.lock-dot {
+  width: 6.5px;
+  height: 6.5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #38bdf8;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.7);
+}
+
+/* ==========================================================================
+   TEXT CHỐT CÔNG: KHUNG KẸP GỖ TEAK & GIẤY DÓ KẺ DÒNG + NÚT GỖ/ĐÁ
+   ========================================================================== */
+.export-preview {
+  position: relative;
+  margin-top: 14px;
+  padding: 15px 46px 15px 16px;
+  min-height: 116px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 22px,
+      rgba(166, 134, 94, 0.14) 22px,
+      rgba(166, 134, 94, 0.14) 23px
+    ),
+    linear-gradient(180deg, #f8f3e7 0%, #f1e9d8 100%);
+  border: 2px solid #c69f6c;
+  border-top: 2.5px solid #a87e4b;
+  border-bottom: 2px solid #e7cfa8;
+  border-radius: 13px;
+  box-shadow:
+    inset 0 3px 7px rgba(78, 48, 18, 0.15),
+    0 1px 0 #ffffff;
+}
+
+.export-preview pre {
+  margin: 0;
+  max-height: 158px;
+  overflow: auto;
+  color: #261b10;
+  font-size: 12.5px;
+  line-height: 23px;
+  font-weight: 600;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.copy-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 33px;
+  height: 33px;
+  color: #3d240e;
+  border-top: 1.5px solid #ffffff;
+  border-left: 1px solid rgba(255, 250, 240, 0.85);
+  border-right: 1.5px solid #c39a69;
+  border-bottom: 2.5px solid #8c5e32;
+  border-radius: 9px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #fbf0db 0%, #e5c696 100%);
+  box-shadow: 0 2px 5px rgba(65, 38, 12, 0.15);
+  transition: all 0.14s ease;
+}
+
+.copy-button:hover {
+  color: #0284c7;
+  transform: translateY(-1.5px);
+}
+
+.export-button {
+  width: 100%;
+  height: 43px;
+  margin-top: 14px;
+  color: #ffffff;
+  border-top: 1.5px solid rgba(255, 255, 255, 0.65);
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  border-right: 1.5px solid #0369a1;
+  border-bottom: 3.5px solid #083344;
+  background:
+    radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.28), transparent 55%),
+    linear-gradient(145deg, #0ea5e9 0%, #0284c7 58%, #075985 100%);
+  font-size: 13.5px;
+  box-shadow: 0 5px 13px rgba(2, 132, 199, 0.28);
+  text-shadow: 0 -1px 1px rgba(0, 0, 0, 0.35);
+}
+
+.export-button:hover {
+  transform: translateY(-1.5px);
+  border-bottom-width: 4.5px;
+  filter: brightness(1.04);
+  box-shadow: 0 8px 17px rgba(2, 132, 199, 0.35);
+}
+
+.export-button:active {
+  transform: translateY(2px);
+  border-bottom-width: 1.5px;
+}
+
+.export-footnote {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  color: #6e665c;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-shadow: 0 1px 0 #ffffff;
+}
+
+.export-footnote span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #0f766e;
+}
+
+/* ==========================================================================
+   CA ĐÃ GHI & CHI TIẾT TÍNH CÔNG
+   ========================================================================== */
+.records-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.record-count {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  height: 29px;
+  padding: 0 9px;
+  color: #075985;
+  border-top: 1px solid #ffffff;
+  border-bottom: 2.5px solid #38bdf8;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ecfeff, #c9ebfb);
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 2px 5px rgba(2, 132, 199, 0.12);
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px;
+  color: #726a60;
+  border: 1.5px dashed #c8beac;
+  border-radius: 13px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: rgba(244, 239, 229, 0.7);
+}
+
+.empty-illustration {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  color: #0284c7;
+  border-radius: 10px;
+  background: #e0f2fe;
+}
+
+.record-list {
+  margin-top: 14px;
+}
+
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 6px;
+  border-top: 1.5px solid #e6dfd1;
+  transition: background 0.15s ease;
+  border-radius: 10px;
+}
+
+.record-item:hover {
+  background: rgba(224, 242, 254, 0.35);
+}
+
+.record-date {
+  min-width: 52px;
+  padding: 3px 8px;
+  color: #0369a1;
+  border-top: 1px solid #ffffff;
+  border-bottom: 2px solid #93c5fd;
+  border-left: 1px solid #e0f2fe;
+  border-right: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f5fbff, #dff1fd);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.record-date:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, #e0f2fe, #bae6fd);
+}
+
+.record-content {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.record-codes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mini-code {
+  padding: 2.5px 9px;
+  color: var(--stone-ink, #0369a1);
+  background:
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.72), transparent 58%),
+    var(--stone-bg, #e0f2fe);
+  border: 1px solid var(--stone-border, #bae6fd);
+  border-bottom-width: 2px;
+  border-radius: 7px;
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 1px 2px rgba(45, 35, 20, 0.08);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.record-hours {
+  color: #1c1917;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.coworker-names {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-basis: 100%;
+  overflow: hidden;
+  color: #6e665c;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-button {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  color: #a39a8e;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  transition: all 0.15s ease;
+}
+
+.delete-button:hover {
+  color: #dc2626;
+  background: #fee2e2;
+}
+
+/* PAYROLL & MONTHLY BREAKDOWN */
+.payroll-day-list,
+.monthly-week-list {
+  margin-top: 14px;
+}
+
+.payroll-day {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1.5px solid #e6dfd1;
+}
+
+.payroll-day > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.payroll-day strong {
+  color: #0284c7;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.payroll-day > div span {
+  overflow: hidden;
+  color: #726a60;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payroll-day-hours {
+  color: #1c1917;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.payroll-day-amount {
+  color: #0f766e;
+  font-size: 13.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.monthly-week {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1.5px solid #e6dfd1;
+}
+
+.monthly-week > div {
+  display: grid;
+  gap: 2px;
+}
+
+.monthly-week > div strong {
+  font-size: 13.5px;
+  color: #1c1917;
+  font-weight: 800;
+}
+
+.monthly-week > div span {
+  font-size: 12px;
+  color: #726a60;
+}
+
+.monthly-week > strong {
+  font-size: 14.5px;
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.payroll-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 16px;
+  border-top: 2px solid #d8cfbe;
+}
+
+.payroll-total span {
+  color: #544d45;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.payroll-total strong {
+  color: #16242f;
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   CHÂN TRANG BỜ CÁT & SÓNG NƯỚC
+   ========================================================================== */
+.footer-note {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 32px;
+  padding: 18px 4px 8px;
+  border-top: 1.5px solid rgba(168, 155, 134, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  color: #6b6359;
+  font-size: 12px;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.footer-cloud {
+  color: #0284c7;
+}
+
+/* THÔNG BÁO (NOTICES) */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 12px 18px;
+  border-radius: 13px;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-top: 1.5px solid #ffffff;
+  border-bottom: 3px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.07);
+}
+
+.notice > button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  font-size: 19px;
+  cursor: pointer;
+  opacity: 0.65;
+}
+
+.notice-error {
+  color: #991b1b;
+  background: linear-gradient(180deg, #fef2f2, #fee2e2);
+  border-bottom-color: #fca5a5;
+}
+
+.notice-success {
+  color: #065f46;
+  background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+  border-bottom-color: #6ee7b7;
+}
+
+.notice-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* BIẾN THỂ BỐ CỤC THEO TAB */
+.entry-tab {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.entry-tab .main-column {
+  max-width: 880px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.entry-tab .side-column {
+  display: none;
+}
+
+.payroll-tab,
+.monthly-tab {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.payroll-tab .main-column,
+.monthly-tab .main-column {
+  display: none;
+}
+
+.payroll-tab .side-column,
+.monthly-tab .side-column {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: stretch;
+}
+
+.payroll-tab .pay-card,
+.monthly-tab .pay-card {
+  min-height: 100%;
+}
+
+/* ==========================================================================
+   TƯƠNG THÍCH MÁY TÍNH BẢNG & ĐIỆN THOẠI (KHÔNG VỠ KHUNG)
+   ========================================================================== */
+@media (max-width: 900px) {
+  .page-wrap {
+    width: min(100% - 32px, 720px);
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .pay-card {
+    grid-row: span 2;
+  }
+
+  .records-panel {
+    grid-column: 2;
+  }
+
+  .payroll-tab .side-column,
+  .monthly-tab .side-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .payroll-tab .pay-card,
+  .monthly-tab .pay-card {
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-wrap {
+    width: calc(100% - 20px);
+  }
+
+  .nature-scene {
+    height: 360px;
+  }
+
+  .topbar {
+    height: 66px;
+    margin-bottom: 16px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
+  .cloud-label {
+    font-size: 0;
+    gap: 4px;
+    padding: 8px 10px;
+  }
+
+  .profile-chip {
+    padding-right: 8px;
+    font-size: 0;
+  }
+
+  .profile-chip svg {
+    display: none;
+  }
+
+  .menu-toggle-btn {
+    width: 40px;
+    padding: 0;
+  }
+
+  .menu-btn-label {
+    display: none;
+  }
+
+  .welcome {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 4px 0 16px;
+    gap: 12px;
+  }
+
+  .welcome h1 {
+    font-size: 22px;
+  }
+
+  .welcome-badges {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .panel {
+    padding: 16px;
+    border-radius: 17px;
+  }
+
+  .week-heading {
+    flex-wrap: wrap;
+  }
+
+  .quick-entry-btn {
+    padding: 6px 11px;
+    font-size: 11.5px;
+  }
+
+  .step-tag {
+    display: none;
+  }
+
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .date-label {
+    margin-left: 0;
+  }
+
+  .name-input,
+  .date-input {
+    width: 100%;
+  }
+
+  .shift-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .shift-card {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .shift-code {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .shift-time {
+    font-size: 11.5px;
+  }
+
+  .shift-hours {
+    font-size: 10.5px;
+  }
+
+  .day-name-full { display: none; }
+  .day-name-short { display: inline; font-weight: 800; font-size: 11.5px; }
+  .day-hours-full { display: none; }
+  .day-hours-short { display: inline; font-weight: 800; color: #0284c7; font-size: 11px; }
+
+  .week-days {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    padding: 9px 9px 12px;
+    scrollbar-width: thin;
+  }
+
+  .week-days::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .week-days::-webkit-scrollbar-thumb {
+    background: #bfb39d;
+    border-radius: 4px;
+  }
+
+  .day-card {
+    flex: 0 0 76px;
+    min-width: 76px;
+    max-width: 76px;
+    scroll-snap-align: start;
+    min-height: 98px;
+    padding: 10px 6px;
+    align-items: center;
+    text-align: center;
+  }
+
+  .day-name {
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .day-number {
+    font-size: 19px;
+    margin: 3px 0 4px;
+    text-align: center;
+  }
+
+  .day-meta {
+    font-size: 10.5px;
+    text-align: center;
+    max-width: 100%;
+  }
+
+  .day-hours {
+    font-size: 11px;
+    text-align: center;
+    margin-top: auto;
+  }
+
+  .export-preview pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: hidden;
+  }
+
+  .side-column {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-card,
+  .records-panel {
+    grid-row: auto;
+    grid-column: auto;
+  }
+
+  .payroll-tab .side-column,
+  .monthly-tab .side-column {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-card h2 {
+    font-size: 24px;
+  }
+
+  .week-selector {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 13px 15px;
+  }
+
+  .week-selector-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .payroll-day {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .payroll-day-amount {
+    grid-column: 1 / -1;
+    justify-self: end;
+    margin-top: -2px;
+  }
+
+  .footer-note {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
 }

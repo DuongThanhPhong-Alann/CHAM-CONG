@@ -13,11 +13,16 @@ import {
   Clock3,
   Copy,
   FileText,
+  Leaf,
+  Menu,
   Plus,
   Sparkles,
   Trash2,
+  TreePine,
   UsersRound,
   Wallet,
+  Waves,
+  X,
 } from "lucide-react";
 import { addDays, dateLabel, isoWeekValue, localDateString, mondayFromIsoWeek, mondayOf } from "@/lib/dates";
 import { SHIFT_OPTIONS, type Shift, type ShiftCode } from "@/lib/shifts";
@@ -40,6 +45,13 @@ type WeeklySummary = {
 };
 
 const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+const SHORT_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+const TAB_LABELS = {
+  week: "Ca trong tuần · text",
+  entry: "Ghi nhận ca làm",
+  payroll: "Tính công theo tuần",
+  monthly: "Tính công theo tháng",
+} as const;
 const currency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 
 function hoursLabel(hours: number) {
@@ -64,9 +76,9 @@ function formatMonthLabel(month: string) {
   return new Date(year, number - 1, 1, 12).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
 }
 
-function createExportText(employeeName: string, records: AttendanceEntry[]) {
+function createExportText(employeeName: string, records: AttendanceEntry[], throughDate: string) {
   const lines = records
-    .filter((record) => record.totalHours > 0)
+    .filter((record) => record.totalHours > 0 && (!throughDate || record.date <= throughDate))
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((record) => {
       const intervals = [...record.shifts]
@@ -97,6 +109,7 @@ export default function Home() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   useEffect(() => {
     const today = localDateString(new Date());
@@ -116,7 +129,7 @@ export default function Home() {
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
   const monthlyMissingRates = monthlyWeeks.filter((week) => week.hours > 0 && week.hourlyRate === null).length;
   const monthlyPay = monthlyMissingRates > 0 ? null : monthlyWeeks.reduce((total, week) => total + (week.pay || 0), 0);
-  const exportText = useMemo(() => createExportText(employeeName, attendance), [employeeName, attendance]);
+  const exportText = useMemo(() => createExportText(employeeName, attendance, selectedDate), [employeeName, attendance, selectedDate]);
 
   async function loadWeek(week: string, name: string) {
     if (!week) return;
@@ -288,159 +301,307 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <div className="mountain-scene" aria-hidden="true">
+      {/* TOÀN CẢNH THIÊN NHIÊN: BIỂN · NƯỚC · NÚI ĐÁ · RỪNG CÂY · GỖ LŨA */}
+      <div className="nature-scene" aria-hidden="true">
         <svg
-          className="mountain-svg"
-          viewBox="0 0 1440 480"
+          className="nature-svg"
+          viewBox="0 0 1440 500"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
           preserveAspectRatio="xMidYMid slice"
         >
           <defs>
-            {/* Luminous Sun Bloom */}
-            <radialGradient id="sunBloom" cx="78%" cy="22%" r="45%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
-              <stop offset="20%" stopColor="#e0f4ff" stopOpacity="0.6" />
-              <stop offset="55%" stopColor="#bae6fd" stopOpacity="0.25" />
+            <linearGradient id="coastalSky" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#bce3f7" />
+              <stop offset="42%" stopColor="#dff3fc" />
+              <stop offset="78%" stopColor="#f2f9fd" />
+              <stop offset="100%" stopColor="#efe8da" />
+            </linearGradient>
+
+            <radialGradient id="morningSun" cx="76%" cy="20%" r="42%">
+              <stop offset="0%" stopColor="#fffdf5" stopOpacity="0.96" />
+              <stop offset="24%" stopColor="#fff3d1" stopOpacity="0.55" />
+              <stop offset="58%" stopColor="#bae6fd" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#bae6fd" stopOpacity="0" />
             </radialGradient>
 
-            {/* Snowcaps & Light/Shadow Gradients for Alpine Peaks */}
-            <linearGradient id="snowLit" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
-              <stop offset="100%" stopColor="#e0f2fe" stopOpacity="0.9" />
+            <linearGradient id="karstLit" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#d4eaf6" />
+              <stop offset="100%" stopColor="#a8cde2" />
             </linearGradient>
-            <linearGradient id="snowShadow" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#cfe3f1" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#9fc8df" stopOpacity="0.85" />
-            </linearGradient>
-
-            {/* Layer 1: Distant Alpine Summits (Bầu trời xa & đỉnh núi tuyết) */}
-            <linearGradient id="mountFarLit" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#c5e4f3" />
-              <stop offset="100%" stopColor="#e4f4fb" />
-            </linearGradient>
-            <linearGradient id="mountFarShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#9cc7dc" />
-              <stop offset="100%" stopColor="#cee8f6" />
+            <linearGradient id="karstShade" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#7aaac5" />
+              <stop offset="100%" stopColor="#9ec5dc" />
             </linearGradient>
 
-            {/* Layer 2: Mid-range Azure Ridges (Dãy núi xanh lam trung cảnh) */}
-            <linearGradient id="mountMidLit" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#6ba5c2" />
-              <stop offset="100%" stopColor="#a7d5e9" />
+            <linearGradient id="cliffStoneLit" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#c5bba8" />
+              <stop offset="100%" stopColor="#9c907d" />
             </linearGradient>
-            <linearGradient id="mountMidShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#4f8aa7" />
-              <stop offset="100%" stopColor="#82bbd5" />
-            </linearGradient>
-
-            {/* Layer 3: Foreground Deep Mountain Slopes (Đồi núi tiền cảnh xanh đậm) */}
-            <linearGradient id="mountNearLit" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#287394" />
-              <stop offset="100%" stopColor="#5ea5bf" />
-            </linearGradient>
-            <linearGradient id="mountNearShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#1a5975" />
-              <stop offset="100%" stopColor="#4287a4" />
+            <linearGradient id="cliffStoneDark" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#756b5c" />
+              <stop offset="100%" stopColor="#585044" />
             </linearGradient>
 
-            {/* Valley Mist Gradients (Sương mù thung lũng mềm mại) */}
-            <linearGradient id="mist1" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-              <stop offset="50%" stopColor="#dff2fc" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#edf7fc" stopOpacity="0.85" />
+            <linearGradient id="oceanBay" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#3ba1ce" stopOpacity="0.72" />
+              <stop offset="38%" stopColor="#63c5e6" stopOpacity="0.65" />
+              <stop offset="74%" stopColor="#a5e3f6" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#efe7d6" stopOpacity="0" />
             </linearGradient>
-            <linearGradient id="mist2" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-              <stop offset="60%" stopColor="#e8f5fb" stopOpacity="0.75" />
-              <stop offset="100%" stopColor="#f3f9fb" stopOpacity="0.98" />
+
+            <linearGradient id="pineDeep" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#1e6b4b" />
+              <stop offset="100%" stopColor="#124530" />
+            </linearGradient>
+            <linearGradient id="pineLush" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#2f8f63" />
+              <stop offset="100%" stopColor="#1a5e40" />
+            </linearGradient>
+            <linearGradient id="driftwood" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#7f5539" />
+              <stop offset="50%" stopColor="#b08968" />
+              <stop offset="100%" stopColor="#6c472d" />
             </linearGradient>
           </defs>
 
-          {/* Morning Sun */}
-          <circle cx="1120" cy="105" r="160" fill="url(#sunBloom)" />
-          <circle cx="1120" cy="105" r="42" fill="#ffffff" fillOpacity="0.6" />
+          {/* Bầu trời biển & Ánh nắng ban mai */}
+          <rect width="1440" height="500" fill="url(#coastalSky)" />
+          <rect width="1440" height="500" fill="url(#morningSun)" />
+          <circle cx="1095" cy="96" r="46" fill="#fffef7" fillOpacity="0.78" />
 
-          {/* LAYER 1: Distant Snow-Capped Alpine Mountain Summits */}
-          {/* Peak 1 Left */}
-          <polygon points="210,110 380,290 60,290" fill="url(#mountFarLit)" />
-          <polygon points="210,110 430,290 380,290" fill="url(#mountFarShadow)" />
-          <polygon points="210,110 255,160 238,170 210,154 185,168 170,156" fill="url(#snowLit)" />
-          <polygon points="210,110 255,160 272,172 245,163" fill="url(#snowShadow)" />
+          {/* Mây trắng trôi nhẹ trên vịnh */}
+          <g className="cloud-drift" opacity="0.72">
+            <path d="M180 86C198 72 228 73 244 88C262 80 288 86 296 102H154C158 90 168 86 180 86Z" fill="#ffffff" />
+            <path d="M840 66C860 50 894 52 912 68C930 60 956 66 966 82H812C818 70 828 66 840 66Z" fill="#ffffff" fillOpacity="0.85" />
+          </g>
 
-          {/* Peak 2 Grand Center Summit */}
-          <polygon points="520,70 760,300 260,300" fill="url(#mountFarLit)" />
-          <polygon points="520,70 810,300 760,300" fill="url(#mountFarShadow)" />
-          <polygon points="520,70 580,135 554,148 520,130 488,146 460,135" fill="url(#snowLit)" />
-          <polygon points="520,70 580,135 604,152 566,143" fill="url(#snowShadow)" />
+          {/* Dãy núi đá ven biển xa mờ */}
+          <g opacity="0.68">
+            <polygon points="0,256 175,148 340,256" fill="url(#karstShade)" />
+            <polygon points="175,148 255,256 340,256" fill="url(#karstLit)" />
+            <polygon points="240,256 445,126 650,256" fill="url(#karstShade)" />
+            <polygon points="445,126 555,256 650,256" fill="url(#karstLit)" />
+            <polygon points="870,256 1065,142 1265,256" fill="url(#karstShade)" />
+            <polygon points="1065,142 1175,256 1265,256" fill="url(#karstLit)" />
+            <polygon points="1160,256 1335,156 1440,235 1440,256" fill="url(#karstShade)" />
+          </g>
 
-          {/* Peak 3 Right Summit near Sun */}
-          <polygon points="1030,85 1270,300 840,300" fill="url(#mountFarLit)" />
-          <polygon points="1030,85 1310,300 1270,300" fill="url(#mountFarShadow)" />
-          <polygon points="1030,85 1085,142 1062,154 1030,136 1000,152 978,142" fill="url(#snowLit)" />
-          <polygon points="1030,85 1085,142 1108,156 1074,148" fill="url(#snowShadow)" />
+          {/* Hòn đảo đá vôi giữa vịnh biển */}
+          <g opacity="0.78">
+            <path d="M685 256L735 192L778 214L812 184L864 256H685Z" fill="url(#karstShade)" />
+            <path d="M735 192L762 256H778L778 214L735 192Z" fill="url(#karstLit)" />
+            <path d="M812 184L834 256H864L812 184Z" fill="url(#karstLit)" />
+          </g>
 
-          {/* Distant Valley Mist */}
-          <rect x="0" y="220" width="1440" height="100" fill="url(#mist1)" />
+          {/* Mặt biển ngọc lam & Nước vịnh trong xanh */}
+          <rect x="0" y="254" width="1440" height="210" fill="url(#oceanBay)" />
 
-          {/* LAYER 2: Mid-range Majestic Mountains */}
-          <path d="M-60,340 L160,165 L360,340 Z" fill="url(#mountMidLit)" />
-          <path d="M160,165 L410,340 L360,340 Z" fill="url(#mountMidShadow)" />
+          {/* Vệt nắng lấp lánh trên mặt nước */}
+          <g className="water-sparkles" opacity="0.55">
+            <ellipse cx="1090" cy="274" rx="78" ry="3" fill="#fffef5" />
+            <ellipse cx="1085" cy="292" rx="56" ry="2.5" fill="#fffef5" />
+            <ellipse cx="1100" cy="312" rx="38" ry="2" fill="#ffffff" />
+            <ellipse cx="775" cy="285" rx="44" ry="2" fill="#e0f7ff" />
+          </g>
 
-          <path d="M240,340 L440,150 L710,350 L240,350 Z" fill="url(#mountMidLit)" />
-          <path d="M440,150 L810,350 L710,350 Z" fill="url(#mountMidShadow)" />
+          {/* Các lớp sóng biển vỗ êm đềm */}
+          <path
+            className="sea-wave sea-wave-back"
+            d="M-60 288C120 274 280 302 460 288C640 274 820 302 1000 288C1180 274 1340 300 1500 288V360H-60V288Z"
+            fill="#7dd3fc"
+            fillOpacity="0.28"
+          />
+          <path
+            className="sea-wave sea-wave-mid"
+            d="M-60 318C150 334 320 302 520 318C720 334 900 304 1100 318C1280 331 1390 310 1500 318V400H-60V318Z"
+            fill="#bae6fd"
+            fillOpacity="0.38"
+          />
+          <path
+            className="sea-wave sea-wave-foam"
+            d="M-60 348C140 335 310 362 510 348C710 334 890 362 1090 348C1270 335 1380 356 1500 348"
+            stroke="#ffffff"
+            strokeWidth="2.5"
+            strokeOpacity="0.68"
+            strokeLinecap="round"
+          />
 
-          <path d="M620,350 L840,140 L1100,350 L620,350 Z" fill="url(#mountMidLit)" />
-          <path d="M840,140 L1180,350 L1100,350 Z" fill="url(#mountMidShadow)" />
+          {/* Mỏm đá cuội, Gỗ lũa & Rừng thông ven biển bên trái */}
+          <g className="coastal-headland-left" opacity="0.86">
+            <path d="M0 326L95 292L192 320L248 352H0V326Z" fill="url(#cliffStoneDark)" />
+            <path d="M95 292L168 352H248L192 320L95 292Z" fill="url(#cliffStoneLit)" />
+            {/* Khúc gỗ lũa ven bờ đá */}
+            <path d="M132 344C158 336 192 338 222 347L218 354C190 347 158 346 130 352Z" fill="url(#driftwood)" />
+            {/* Rừng cây thông biển */}
+            <g className="breeze-trees">
+              <polygon points="36,204 12,254 24,254 8,292 64,292 48,254 60,254" fill="url(#pineDeep)" />
+              <polygon points="78,218 56,262 67,262 52,298 104,298 89,262 100,262" fill="url(#pineLush)" />
+              <polygon points="122,236 104,272 113,272 100,302 144,302 131,272 140,272" fill="url(#pineDeep)" />
+            </g>
+          </g>
 
-          <path d="M960,350 L1210,175 L1490,350 L960,350 Z" fill="url(#mountMidLit)" />
-          <path d="M1210,175 L1540,350 L1490,350 Z" fill="url(#mountMidShadow)" />
-
-          {/* Floating Morning Cloud Mist */}
-          <path d="M0,270 Q300,240 600,275 T1200,265 T1440,285 L1440,330 L0,330 Z" fill="#ffffff" fillOpacity="0.4" />
-
-          {/* LAYER 3: Foreground Foothills & Slopes */}
-          <path d="M-80,420 L90,235 L330,420 Z" fill="url(#mountNearLit)" />
-          <path d="M90,235 L400,420 L330,420 Z" fill="url(#mountNearShadow)" />
-
-          <path d="M210,420 L400,240 L660,420 Z" fill="url(#mountNearLit)" />
-          <path d="M400,240 L760,420 L660,420 Z" fill="url(#mountNearShadow)" />
-
-          <path d="M550,420 L760,220 L1030,420 Z" fill="url(#mountNearLit)" />
-          <path d="M760,220 L1130,420 L1030,420 Z" fill="url(#mountNearShadow)" />
-
-          <path d="M900,420 L1130,235 L1400,420 Z" fill="url(#mountNearLit)" />
-          <path d="M1130,235 L1520,420 L1400,420 Z" fill="url(#mountNearShadow)" />
-
-          {/* Atmospheric Mist Over Horizon */}
-          <rect x="0" y="310" width="1440" height="170" fill="url(#mist2)" />
+          {/* Mỏm đá & Rừng cây ven biển bên phải */}
+          <g className="coastal-headland-right" opacity="0.84">
+            <path d="M1440 322L1345 288L1258 318L1204 350H1440V322Z" fill="url(#cliffStoneDark)" />
+            <path d="M1345 288L1292 350H1204L1258 318L1345 288Z" fill="url(#cliffStoneLit)" />
+            <g className="breeze-trees breeze-trees-delayed">
+              <polygon points="1396,202 1372,252 1384,252 1368,292 1424,292 1408,252 1420,252" fill="url(#pineDeep)" />
+              <polygon points="1350,222 1328,266 1338,266 1325,298 1375,298 1362,266 1372,266" fill="url(#pineLush)" />
+            </g>
+          </g>
         </svg>
       </div>
 
       <div className="page-wrap">
         <header className="topbar">
           <a href="#top" className="brand" aria-label="Chốt Công trang chủ">
-            <span className="brand-mark brand-mark-image"><Image src="/mountain-logo.png" alt="" width={52} height={29} priority /></span>
+            <span className="brand-mark">
+              <Image src="/site-logo.png" alt="" width={68} height={38} priority />
+            </span>
             <span>chốt<span className="brand-light">công</span></span>
           </a>
+
           <div className="topbar-right">
-            <span className="cloud-label"><span className="live-dot" /> Dữ liệu MongoDB</span>
+            <span className="cloud-label"><span className="live-dot" /><Leaf size={13} className="leaf-accent" /> Dữ liệu MongoDB</span>
             <button className="profile-chip" type="button" onClick={() => { setActiveTab("entry"); window.setTimeout(() => document.getElementById("employee-name")?.focus(), 0); }}>
               <span className="avatar">{(employeeName.trim()[0] || "T").toUpperCase()}</span>
               <span>{employeeName || "Thanh Phong"}</span>
-              <ChevronDown size={15} />
+              <ChevronDown size={14} />
+            </button>
+            <button
+              type="button"
+              className="menu-toggle-btn"
+              aria-label="Mở danh sách các tab chức năng"
+              title="Menu chuyển tab (3 gạch)"
+              onClick={() => setIsDrawerOpen(true)}
+            >
+              <Menu size={19} />
+              <span className="menu-btn-label">Danh mục</span>
             </button>
           </div>
         </header>
 
-        <section className="welcome" id="top">
-          <div>
-            <div className="eyebrow"><Sparkles size={14} /> MỖI CA LÀM, MỘT BƯỚC TIẾN</div>
-            <h1>Chấm công <span>nhẹ nhàng</span></h1>
-            <p>Ghi ca làm, chốt công cuối tuần và theo dõi lương trong một nơi</p>
+        {/* DRAWER MENU 3 GẠCH (SLIDE-OVER SHEET) */}
+        <div
+          className={`drawer-backdrop ${isDrawerOpen ? "is-open" : ""}`}
+          onClick={() => setIsDrawerOpen(false)}
+          aria-hidden={!isDrawerOpen}
+        >
+          <div
+            className="drawer-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu chức năng"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="drawer-header">
+              <div className="drawer-brand">
+                <span className="brand-mark">
+                  <Image src="/site-logo.png" alt="" width={68} height={38} />
+                </span>
+                <div>
+                  <div className="drawer-title">chốt<span>công</span></div>
+                  <div className="drawer-subtitle">Danh mục quản lý</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="drawer-close-btn"
+                aria-label="Đóng menu"
+                onClick={() => setIsDrawerOpen(false)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            <div className="drawer-user-card">
+              <span className="avatar">{(employeeName.trim()[0] || "T").toUpperCase()}</span>
+              <div className="drawer-user-info">
+                <strong>{employeeName || "Thanh Phong"}</strong>
+                <span>{selectedDate ? `Ngày ${dateLabel(selectedDate)}` : "Hôm nay"} · Tuần này: {weeklyHours}h</span>
+              </div>
+            </div>
+
+            <div className="drawer-nav-group">
+              <div className="drawer-group-title">CHỌN TAB CHỨC NĂNG</div>
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "week" ? "active" : ""}`}
+                onClick={() => { setActiveTab("week"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-teal"><CalendarDays size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Ca trong tuần · Text</strong>
+                  <small>Xem tổng 7 ngày & sao chép text chốt ca</small>
+                </div>
+                <span className="drawer-tab-pill">{weeklyHours}h</span>
+              </button>
+
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "entry" ? "active" : ""}`}
+                onClick={() => { setActiveTab("entry"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-blue"><Plus size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Ghi nhận ca làm</strong>
+                  <small>Chọn ca, người làm chung & lưu MongoDB</small>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "payroll" ? "active" : ""}`}
+                onClick={() => { setActiveTab("payroll"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-amber"><Wallet size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Tính lương tuần</strong>
+                  <small>Cài đặt hệ số lương/giờ và xem lương tuần</small>
+                </div>
+                {estimatedPay !== null && <span className="drawer-tab-pill">{currency.format(estimatedPay)}</span>}
+              </button>
+
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "monthly" ? "active" : ""}`}
+                onClick={() => { setActiveTab("monthly"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-violet"><FileText size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Tổng hợp tháng</strong>
+                  <small>Cộng dồn số giờ và thu nhập các tuần</small>
+                </div>
+              </button>
+            </div>
+
+            <div className="drawer-actions">
+              <button
+                type="button"
+                className="drawer-action-link"
+                onClick={() => {
+                  setActiveTab("entry");
+                  setIsDrawerOpen(false);
+                  window.setTimeout(() => document.getElementById("employee-name")?.focus(), 100);
+                }}
+              >
+                <UsersRound size={16} /> Thay đổi nhân viên
+              </button>
+            </div>
           </div>
-          <div className="today-pill"><CalendarDays size={16} /> {selectedDate ? dateLabel(selectedDate) : "..."}</div>
+        </div>
+
+        <section className="welcome" id="top">
+          <div className="welcome-info">
+            <div className="eyebrow"><Waves size={13} /> BẢNG CÔNG TÁC & CHỐT CA <TreePine size={13} /></div>
+            <h1>Bảng chấm công <span>{employeeName || "Nhân viên"}</span></h1>
+            <p>Ghi nhận ca làm việc, chốt công cuối tuần và theo dõi thu nhập minh bạch</p>
+          </div>
+          <div className="welcome-badges">
+            <div className="stat-pill"><CalendarDays size={15} /> {selectedDate ? `Ngày ${dateLabel(selectedDate)}` : "Hôm nay"}</div>
+            <div className="stat-pill highlight-pill"><Clock3 size={15} /> Tuần này: <strong>{weeklyHours} giờ</strong></div>
+          </div>
         </section>
 
         {(error || message) && (
@@ -450,13 +611,6 @@ export default function Home() {
             <button type="button" aria-label="Đóng thông báo" onClick={() => { setError(""); setMessage(""); }}>×</button>
           </div>
         )}
-
-        <nav className="app-tabs" aria-label="Các mục chấm công">
-          <button type="button" className={activeTab === "week" ? "active" : ""} onClick={() => setActiveTab("week")}><CalendarDays size={16} /> Ca trong tuần <span>· text</span></button>
-          <button type="button" className={activeTab === "entry" ? "active" : ""} onClick={() => setActiveTab("entry")}><Plus size={16} /> Ghi nhận ca làm</button>
-          <button type="button" className={activeTab === "payroll" ? "active" : ""} onClick={() => setActiveTab("payroll")}><Wallet size={16} /> Tính công theo tuần</button>
-          <button type="button" className={activeTab === "monthly" ? "active" : ""} onClick={() => setActiveTab("monthly")}><CalendarDays size={16} /> Tính công theo tháng</button>
-        </nav>
 
         {activeTab === "monthly" ? (
           <div className="week-selector">
@@ -514,10 +668,12 @@ export default function Home() {
                       className={`shift-card tone-${shift.tone} ${selected ? "is-selected" : ""}`}
                       onClick={() => toggleShift(shift.code)}
                     >
-                      <span className="shift-check">{selected && <Check size={12} strokeWidth={3} />}</span>
                       <span className="shift-code">{shift.code}</span>
-                      <span className="shift-time">{shift.hours ? `${shift.start}:00 – ${shift.end}:00` : "Ngày nghỉ"}</span>
-                      <span className="shift-hours">{shift.hours} giờ</span>
+                      <div className="shift-info">
+                        <span className="shift-time">{shift.hours ? `${shift.start}:00 – ${shift.end}:00` : "Ngày nghỉ"}</span>
+                        <span className="shift-hours">{shift.hours} giờ</span>
+                      </div>
+                      <span className="shift-check">{selected && <Check size={13} strokeWidth={3} />}</span>
                     </button>
                   );
                 })}
@@ -547,19 +703,49 @@ export default function Home() {
             <section className="panel week-panel">
               <div className="section-heading week-heading">
                 <div className="heading-icon heading-icon-teal"><CalendarDays size={18} /></div>
-                <div><h2>Ca trong tuần</h2><p>Chọn ngày để mở nhanh phần ghi nhận</p></div>
+                <div><h2>Ca trong tuần</h2><p>Chọn ngày để lọc text chốt công hoặc bấm ghi ca</p></div>
+                <button
+                  type="button"
+                  className="quick-entry-btn"
+                  onClick={() => setActiveTab("entry")}
+                >
+                  <Plus size={14} strokeWidth={2.5} />
+                  <span>Ghi ca {selectedDate ? dateLabel(selectedDate) : ""}</span>
+                </button>
               </div>
               <div className="week-days">
                 {WEEKDAYS.map((weekday, index) => {
                   const date = addDays(weekStart || localDateString(new Date()), index);
                   const record = attendance.find((item) => item.date === date);
                   const isSelected = selectedDate === date;
+                  const shortWeekday = SHORT_WEEKDAYS[index];
                   return (
-                    <button type="button" key={weekday} className={`day-card ${record ? "day-has-work" : ""} ${isSelected ? "day-selected" : ""}`} onClick={() => setSelectedDate(date)}>
-                      <span className="day-name">{weekday}</span>
+                    <button
+                      type="button"
+                      key={weekday}
+                      className={`day-card ${record ? "day-has-work" : ""} ${isSelected ? "day-selected" : ""}`}
+                      onClick={() => setSelectedDate(date)}
+                    >
+                      <span className="day-name">
+                        <span className="day-name-full">{weekday}</span>
+                        <span className="day-name-short">{shortWeekday}</span>
+                      </span>
                       <span className="day-number">{date.slice(-2)}</span>
-                      {record ? <span className="day-meta">{record.shifts.map((shift) => shift.code).join(" · ")}</span> : <span className="day-meta empty-meta">Chưa có ca</span>}
-                      <span className="day-hours">{record ? `${record.totalHours} giờ` : "—"}</span>
+                      {record ? (
+                        <span className="day-meta">{record.shifts.map((shift) => shift.code).join("·")}</span>
+                      ) : (
+                        <span className="day-meta empty-meta">Trống</span>
+                      )}
+                      <span className="day-hours">
+                        {record ? (
+                          <>
+                            <span className="day-hours-full">{record.totalHours} giờ</span>
+                            <span className="day-hours-short">{record.totalHours}h</span>
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </span>
                     </button>
                   );
                 })}
@@ -609,14 +795,14 @@ export default function Home() {
             <section className="panel export-panel">
               <div className="section-heading export-heading">
                 <div className="heading-icon heading-icon-violet"><FileText size={18} /></div>
-                <div><h2>Text chốt công</h2><p>{weekStart && formatWeekRange(weekStart, weekEnd)}</p></div>
+                <div><h2>Text chốt công</h2><p>{weekStart && selectedDate && formatWeekRange(weekStart, selectedDate)}</p></div>
               </div>
               <div className="export-preview">
                 <pre>{exportText}</pre>
                 <button type="button" className="copy-button" aria-label="Sao chép nội dung" onClick={copyText}>{copied ? <Check size={16} /> : <Copy size={16} />}</button>
               </div>
               <button className="export-button" type="button" onClick={copyText}>{copied ? <><Check size={16} /> Đã sao chép</> : <><Copy size={16} /> Sao chép text</>}</button>
-              <div className="export-footnote"><span><ArrowDownToLine size={14} /> Dán vào nhóm chốt công</span><span>{attendance.filter((item) => item.totalHours > 0).length} ngày</span></div>
+              <div className="export-footnote"><span><ArrowDownToLine size={14} /> Dán vào nhóm chốt công</span><span>{attendance.filter((item) => item.totalHours > 0 && item.date <= selectedDate).length} ngày</span></div>
             </section>
             )}
 
