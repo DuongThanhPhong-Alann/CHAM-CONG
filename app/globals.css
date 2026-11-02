@@ -1033,6 +1033,13 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .payroll-day-hours { color: #1e3d52; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
 .payroll-day-amount { color: #059669; font-size: 10.5px; font-weight: 800; white-space: nowrap; }
 
+.monthly-week-list { margin-top: 14px; }
+.monthly-week { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 13px 0; border-top: 1px solid #edf4f8; }
+.monthly-week > div { display: grid; gap: 4px; min-width: 0; }
+.monthly-week > div strong { color: #0284c7; font-size: 10.5px; }
+.monthly-week > div span { color: #6d8697; font-size: 9.5px; }
+.monthly-week > strong { color: #059669; font-size: 10.5px; font-weight: 800; text-align: right; white-space: nowrap; }
+
 .payroll-total { 
   display: flex; 
   justify-content: space-between; 
@@ -1082,6 +1089,10 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .payroll-tab .main-column { display: none; }
 .payroll-tab .side-column { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: stretch; }
 .payroll-tab .pay-card { min-height: 100%; }
+.monthly-tab { grid-template-columns: minmax(0, 1fr); }
+.monthly-tab .main-column { display: none; }
+.monthly-tab .side-column { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); align-items: stretch; }
+.monthly-tab .pay-card { min-height: 100%; }
 
 /* RESPONSIVE DESIGN */
 @media (max-width: 900px) {
@@ -1092,6 +1103,8 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .records-panel { grid-column: 2; }
   .payroll-tab .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .payroll-tab .pay-card { grid-row: auto; }
+  .monthly-tab .side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .monthly-tab .pay-card { grid-row: auto; }
 }
 
 @media (max-width: 620px) {
@@ -1134,6 +1147,7 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
   .side-column { grid-template-columns: 1fr; }
   .pay-card, .records-panel { grid-row: auto; grid-column: auto; }
   .payroll-tab .side-column { grid-template-columns: 1fr; }
+  .monthly-tab .side-column { grid-template-columns: 1fr; }
   .pay-card h2 { font-size: 25px; }
   
   .app-tabs { width: 100%; }

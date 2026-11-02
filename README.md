@@ -1,6 +1,6 @@
 # Chốt Công
 
-Ứng dụng Next.js để ghi nhận ca làm, tổng hợp giờ theo tuần, xuất nội dung chốt công và tính lương sau khi nhập hệ số theo giờ. Ngày công, tên người làm chung và hệ số lương được lưu trong MongoDB.
+Ứng dụng Next.js để ghi nhận ca làm, tổng hợp giờ theo tuần, xuất nội dung chốt công và tính lương theo tuần hoặc tháng sau khi nhập hệ số theo giờ. Ngày công, tên người làm chung và hệ số lương được lưu trong MongoDB.
 
 ## Chạy ứng dụng
 
@@ -26,6 +26,7 @@
 - **Ca trong tuần · text:** xem lịch từ thứ Hai đến Chủ nhật, danh sách ca đã ghi và sao chép text chốt công cho đúng tuần đang chọn.
 - **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca và nhập tên người làm chung nếu có.
 - **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca, tổng lương của tuần cập nhật theo hệ số đã lưu.
+- **Tính công theo tháng:** xem tổng giờ và cộng tiền công của các tuần bắt đầu trong tháng. Tuần được tính trọn theo hệ số riêng đã lưu; tháng nào còn tuần có giờ làm nhưng chưa có hệ số sẽ chưa hiện tổng tiền.
 
 Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả tuần chưa nhập hệ số. Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
 

@@ -31,6 +31,14 @@ type AttendanceEntry = {
   totalHours: number;
 };
 
+type WeeklySummary = {
+  weekStart: string;
+  weekEnd: string;
+  hours: number;
+  hourlyRate: number | null;
+  pay: number | null;
+};
+
 const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const currency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 
@@ -50,6 +58,12 @@ function formatWeekRange(start: string, end: string) {
   return `ngày ${formatFullDate(start)} đến ngày ${formatFullDate(end)}`;
 }
 
+function formatMonthLabel(month: string) {
+  if (!month) return "";
+  const [year, number] = month.split("-").map(Number);
+  return new Date(year, number - 1, 1, 12).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
+}
+
 function createExportText(employeeName: string, records: AttendanceEntry[]) {
   const lines = records
     .filter((record) => record.totalHours > 0)
@@ -66,22 +80,29 @@ function createExportText(employeeName: string, records: AttendanceEntry[]) {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"week" | "entry" | "payroll">("week");
+  const [activeTab, setActiveTab] = useState<"week" | "entry" | "payroll" | "monthly">("week");
   const [employeeName, setEmployeeName] = useState("Thanh Phong");
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
+  const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
   const [coworkersInput, setCoworkersInput] = useState("");
   const [hourlyRate, setHourlyRate] = useState<number | null>(null);
   const [rateDraft, setRateDraft] = useState("");
   const [loading, setLoading] = useState(false);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savingRate, setSavingRate] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => setSelectedDate(localDateString(new Date())), []);
+  useEffect(() => {
+    const today = localDateString(new Date());
+    setSelectedDate(today);
+    setSelectedMonth(today.slice(0, 7));
+  }, []);
 
   const weekStart = useMemo(() => (selectedDate ? mondayOf(selectedDate) : ""), [selectedDate]);
   const weekEnd = useMemo(() => (weekStart ? addDays(weekStart, 6) : ""), [weekStart]);
@@ -92,6 +113,9 @@ export default function Home() {
   const selectedHours = selectedShifts.reduce((total, shift) => total + shift.hours, 0);
   const weeklyHours = attendance.reduce((total, record) => total + record.totalHours, 0);
   const estimatedPay = hourlyRate === null ? null : weeklyHours * hourlyRate;
+  const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
+  const monthlyMissingRates = monthlyWeeks.filter((week) => week.hours > 0 && week.hourlyRate === null).length;
+  const monthlyPay = monthlyMissingRates > 0 ? null : monthlyWeeks.reduce((total, week) => total + (week.pay || 0), 0);
   const exportText = useMemo(() => createExportText(employeeName, attendance), [employeeName, attendance]);
 
   async function loadWeek(week: string, name: string) {
@@ -116,11 +140,35 @@ export default function Home() {
     }
   }
 
+  async function loadMonth(month: string, name: string) {
+    if (!month) return;
+    setMonthlyLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ month, employee: name.trim() || "Thanh Phong" });
+      const response = await fetch(`/api/payroll/month?${params}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không tải được dữ liệu tháng");
+      setMonthlyWeeks(data.weeks as WeeklySummary[]);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Không tải được dữ liệu tháng");
+      setMonthlyWeeks([]);
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (weekStart) void loadWeek(weekStart, employeeName);
     // Load the selected employee's records whenever the week or employee changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, employeeName]);
+
+  useEffect(() => {
+    if (activeTab === "monthly" && selectedMonth) void loadMonth(selectedMonth, employeeName);
+    // Load the monthly summary when its tab, month, or employee changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, selectedMonth, employeeName]);
 
   useEffect(() => {
     const existing = attendance.find((record) => record.date === selectedDate);
@@ -167,6 +215,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không lưu được ngày công");
       await loadWeek(weekStart, employeeName);
+      if (selectedDate.slice(0, 7) === selectedMonth) await loadMonth(selectedMonth, employeeName);
       setMessage("Đã lưu ngày công vào MongoDB");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Không lưu được ngày công");
@@ -187,6 +236,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không xóa được ngày công");
       await loadWeek(weekStart, employeeName);
+      if (date.slice(0, 7) === selectedMonth) await loadMonth(selectedMonth, employeeName);
       setMessage("Đã xóa ngày công");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Không xóa được ngày công");
@@ -230,6 +280,11 @@ export default function Home() {
   }
 
   const moveWeek = (offset: number) => setSelectedDate(addDays(selectedDate || localDateString(new Date()), offset * 7));
+  const moveMonth = (offset: number) => {
+    const [year, month] = (selectedMonth || localDateString(new Date()).slice(0, 7)).split("-").map(Number);
+    const next = new Date(year, month - 1 + offset, 1, 12);
+    setSelectedMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
+  };
 
   return (
     <main className="app-shell">
@@ -400,8 +455,21 @@ export default function Home() {
           <button type="button" className={activeTab === "week" ? "active" : ""} onClick={() => setActiveTab("week")}><CalendarDays size={16} /> Ca trong tuần <span>· text</span></button>
           <button type="button" className={activeTab === "entry" ? "active" : ""} onClick={() => setActiveTab("entry")}><Plus size={16} /> Ghi nhận ca làm</button>
           <button type="button" className={activeTab === "payroll" ? "active" : ""} onClick={() => setActiveTab("payroll")}><Wallet size={16} /> Tính công theo tuần</button>
+          <button type="button" className={activeTab === "monthly" ? "active" : ""} onClick={() => setActiveTab("monthly")}><CalendarDays size={16} /> Tính công theo tháng</button>
         </nav>
 
+        {activeTab === "monthly" ? (
+          <div className="week-selector">
+            <div><span className="week-selector-label">THÁNG ĐANG XEM</span><strong>{formatMonthLabel(selectedMonth)}</strong></div>
+            <div className="week-selector-actions">
+              <label className="week-picker"><span>Chọn tháng</span><input type="month" aria-label="Chọn tháng để xem tổng công" value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)} /></label>
+              <div className="week-controls">
+                <button type="button" aria-label="Tháng trước" onClick={() => moveMonth(-1)}><ArrowLeft size={17} /></button>
+                <button type="button" aria-label="Tháng sau" onClick={() => moveMonth(1)}><ArrowRight size={17} /></button>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="week-selector">
           <div><span className="week-selector-label">TUẦN ĐANG XEM</span><strong>{weekStart && `Từ ${formatWeekRange(weekStart, weekEnd)}`}</strong></div>
           <div className="week-selector-actions">
@@ -412,6 +480,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        )}
 
         <div className={`dashboard-grid ${activeTab}-tab`}>
           <div className="main-column">
@@ -523,6 +592,19 @@ export default function Home() {
             </section>
             )}
 
+            {activeTab === "monthly" && (
+            <section className="pay-card">
+              <div className="pay-card-top">
+                <span className="pay-icon"><CalendarDays size={19} /></span>
+                <span className="pay-week">TỔNG CÔNG THÁNG · {formatMonthLabel(selectedMonth)}</span>
+              </div>
+              <h2>{monthlyLoading ? "Đang tính…" : monthlyPay === null ? "Chưa đủ hệ số" : currency.format(monthlyPay)}</h2>
+              <p>{monthlyLoading ? "Đang tải tổng giờ…" : monthlyMissingRates > 0 ? `${monthlyHours} giờ · còn thiếu hệ số ${monthlyMissingRates} tuần` : `${monthlyHours} giờ · cộng ${monthlyWeeks.length} tuần`}</p>
+              <div className="pay-divider" />
+              <div className="pay-footnote"><span className="lock-dot" /> Cộng các tuần bắt đầu trong tháng. Nếu tháng bắt đầu giữa tuần, tuần đó thuộc tháng trước; tuần cuối có thể kéo sang tháng sau.</div>
+            </section>
+            )}
+
             {activeTab === "week" && (
             <section className="panel export-panel">
               <div className="section-heading export-heading">
@@ -587,6 +669,25 @@ export default function Home() {
                   </div>
                 )}
                 <div className="payroll-total"><span>{weeklyHours} giờ × {hourlyRate === null ? "chưa nhập hệ số" : currency.format(hourlyRate)}</span><strong>{estimatedPay === null ? "—" : currency.format(estimatedPay)}</strong></div>
+              </section>
+            )}
+
+            {activeTab === "monthly" && (
+              <section className="panel payroll-breakdown monthly-breakdown">
+                <div className="records-heading"><div><h2>Kết quả từng tuần</h2><p>{formatMonthLabel(selectedMonth)} · tính trọn tuần</p></div><span className="record-count">{monthlyLoading ? "…" : `${monthlyHours}h`}</span></div>
+                {monthlyLoading ? <div className="empty-state">Đang tải dữ liệu…</div> : monthlyWeeks.length === 0 ? (
+                  <div className="empty-state"><span className="empty-illustration"><Wallet size={20} /></span><span>Chưa có tuần công nào trong tháng này</span></div>
+                ) : (
+                  <div className="monthly-week-list">
+                    {monthlyWeeks.map((week) => (
+                      <div className="monthly-week" key={week.weekStart}>
+                        <div><strong>{formatWeekRange(week.weekStart, week.weekEnd)}</strong><span>{week.hours} giờ · {week.hourlyRate === null ? "Chưa nhập hệ số" : `${currency.format(week.hourlyRate)} / giờ`}</span></div>
+                        <strong>{week.pay === null ? "Thiếu hệ số" : currency.format(week.pay)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!monthlyLoading && <div className="payroll-total"><span>Cộng {monthlyWeeks.length} tuần · {monthlyHours} giờ</span><strong>{monthlyPay === null ? "—" : currency.format(monthlyPay)}</strong></div>}
               </section>
             )}
           </aside>
