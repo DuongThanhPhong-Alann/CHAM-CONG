@@ -34,6 +34,7 @@ type AttendanceEntry = {
   shifts: Shift[];
   coworkers: string[];
   totalHours: number;
+  extraHours?: number;
 };
 
 type WeeklySummary = {
@@ -86,7 +87,8 @@ function createExportText(employeeName: string, records: AttendanceEntry[], thro
         .sort((a, b) => a.start - b.start)
         .map((shift) => `${shift.start}-${shift.end}`)
         .join(", ");
-      return `${dateLabel(record.date)}: ${intervals} (${record.totalHours})`;
+      const extraHours = record.extraHours ?? 0;
+      return `${dateLabel(record.date)}: ${intervals} (${record.totalHours}${extraHours > 0 ? `, gồm ${extraHours} giờ làm thêm` : ""})`;
     });
   return ["Chốt công", employeeName.trim() || "Nhân viên", ...lines].join("\n");
 }
@@ -99,6 +101,7 @@ export default function Home() {
   const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
   const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
+  const [extraHoursDraft, setExtraHoursDraft] = useState("0");
   const [coworkersInput, setCoworkersInput] = useState("");
   const [hourlyRate, setHourlyRate] = useState<number | null>(null);
   const [rateDraft, setRateDraft] = useState("");
@@ -124,6 +127,9 @@ export default function Home() {
     [selectedCodes],
   );
   const selectedHours = selectedShifts.reduce((total, shift) => total + shift.hours, 0);
+  const parsedExtraHours = extraHoursDraft.trim() === "" ? 0 : Number(extraHoursDraft);
+  const validExtraHours = Number.isFinite(parsedExtraHours) && parsedExtraHours >= 0;
+  const selectedTotalHours = selectedHours + (validExtraHours ? parsedExtraHours : 0);
   const weeklyHours = attendance.reduce((total, record) => total + record.totalHours, 0);
   const estimatedPay = hourlyRate === null ? null : weeklyHours * hourlyRate;
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
@@ -186,6 +192,7 @@ export default function Home() {
   useEffect(() => {
     const existing = attendance.find((record) => record.date === selectedDate);
     setSelectedCodes(existing?.shifts.map((shift) => shift.code) ?? []);
+    setExtraHoursDraft(String(existing?.extraHours ?? 0));
     setCoworkersInput(existing?.coworkers.join(", ") ?? "");
   }, [selectedDate, attendance]);
 
@@ -205,8 +212,12 @@ export default function Home() {
       setError("Hãy chọn ngày và ít nhất một ca làm");
       return;
     }
-    if (selectedHours > 14) {
-      setError("Tổng thời gian các ca trong một ngày không được vượt quá 14 tiếng");
+    if (!validExtraHours) {
+      setError("Giờ làm thêm phải là số không âm");
+      return;
+    }
+    if (selectedTotalHours > 14) {
+      setError("Tổng giờ làm trong một ngày không được vượt quá 14 tiếng");
       return;
     }
     setSaving(true);
@@ -222,7 +233,8 @@ export default function Home() {
           date: selectedDate,
           shifts: selectedShifts.map(({ code, start, end, hours }) => ({ code, start, end, hours })),
           coworkers,
-          totalHours: selectedHours,
+          extraHours: parsedExtraHours,
+          totalHours: selectedTotalHours,
         }),
       });
       const data = await response.json();
@@ -655,7 +667,7 @@ export default function Home() {
 
               <div className="shift-title-row">
                 <div><h3>Chọn ca</h3><p>Ca kết thúc lúc 23h được tính đến 22h</p></div>
-                <span className={`hours-chip ${selectedHours > 14 ? "hours-over" : ""}`}><Clock3 size={14} /> {selectedHours} / 14 giờ</span>
+                <span className={`hours-chip ${selectedTotalHours > 14 || !validExtraHours ? "hours-over" : ""}`}><Clock3 size={14} /> {selectedTotalHours} / 14 giờ</span>
               </div>
               <div className="shift-grid">
                 {SHIFT_OPTIONS.map((shift) => {
@@ -678,11 +690,17 @@ export default function Home() {
                   );
                 })}
               </div>
-              {selectedHours > 14 && (
+              {selectedTotalHours > 14 && (
                 <div className="inline-warning">
-                  Tổng ca vượt quá 14 tiếng/ngày.
+                  Tổng giờ ca và giờ làm thêm vượt quá 14 tiếng/ngày.
                 </div>
               )}
+
+              <div className="field-block extra-hours-block">
+                <label className="field-label" htmlFor="extra-hours">Giờ làm thêm <span>(nếu có)</span></label>
+                <div className="input-wrap full-input"><Clock3 size={17} /><input id="extra-hours" type="number" min="0" step="0.5" value={extraHoursDraft} onChange={(event) => setExtraHoursDraft(event.target.value)} placeholder="Ví dụ: 0.5" /><span className="input-suffix">giờ</span></div>
+                <span className="field-hint">Nhập 0.5 nếu làm thêm 30 phút; giờ này sẽ được cộng vào tổng công.</span>
+              </div>
 
               <div className="field-block coworkers-block">
                 <label className="field-label" htmlFor="coworkers">Người làm chung <span>(nếu có)</span></label>
@@ -691,8 +709,8 @@ export default function Home() {
               </div>
 
               <div className="entry-footer">
-                <div className="selected-summary">{selectedCodes.length ? <><CheckCheck size={16} /> {selectedCodes.includes("O") ? "Đã chọn ngày nghỉ" : `Đã chọn ${selectedCodes.length} ca · ${hoursLabel(selectedHours)}`}</> : <><Clock3 size={16} /> Chưa chọn ca nào</>}</div>
-                <button className="primary-button" type="button" disabled={saving || loading || !selectedCodes.length || selectedHours > 14} onClick={saveAttendance}>
+                <div className="selected-summary">{selectedCodes.length ? <><CheckCheck size={16} /> {selectedCodes.includes("O") ? "Đã chọn ngày nghỉ" : `Đã chọn ${selectedCodes.length} ca`} · Tổng {hoursLabel(selectedTotalHours)}</> : <><Clock3 size={16} /> Chưa chọn ca nào</>}</div>
+                <button className="primary-button" type="button" disabled={saving || loading || !selectedCodes.length || !validExtraHours || selectedTotalHours > 14} onClick={saveAttendance}>
                   {saving ? "Đang lưu…" : <><Check size={17} /> Lưu ngày công</>}
                 </button>
               </div>
@@ -828,6 +846,7 @@ export default function Home() {
                           })}
                         </div>
                         <span className="record-hours">{record.totalHours} giờ</span>
+                        {(record.extraHours ?? 0) > 0 && <span className="coworker-names">+{record.extraHours} giờ làm thêm</span>}
                         {record.coworkers.length > 0 && <span className="coworker-names"><UsersRound size={12} /> {record.coworkers.join(", ")}</span>}
                       </div>
                       <button className="delete-button" type="button" aria-label={`Xóa ngày ${dateLabel(record.date)}`} onClick={() => deleteAttendance(record.date)}><Trash2 size={15} /></button>
@@ -847,7 +866,7 @@ export default function Home() {
                   <div className="payroll-day-list">
                     {[...attendance].sort((a, b) => a.date.localeCompare(b.date)).map((record) => (
                       <div className="payroll-day" key={record._id}>
-                        <div><strong>{dateLabel(record.date)}</strong><span>{record.shifts.map((shift) => shift.code).join(" · ")}</span></div>
+                        <div><strong>{dateLabel(record.date)}</strong><span>{record.shifts.map((shift) => shift.code).join(" · ")}{(record.extraHours ?? 0) > 0 && ` · +${record.extraHours}h làm thêm`}</span></div>
                         <span className="payroll-day-hours">{record.totalHours} giờ</span>
                         {hourlyRate !== null && <span className="payroll-day-amount">{currency.format(record.totalHours * hourlyRate)}</span>}
                       </div>

@@ -16,6 +16,7 @@ const AttendanceSchema = new Schema(
     date: { type: String, required: true },
     shifts: { type: [ShiftSchema], required: true },
     coworkers: { type: [String], default: [] },
+    extraHours: { type: Number, required: true, min: 0, default: 0 },
     totalHours: { type: Number, required: true },
   },
   { timestamps: true },

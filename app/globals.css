@@ -1098,6 +1098,13 @@ button {
   font-weight: 500;
 }
 
+.input-suffix {
+  flex-shrink: 0;
+  color: #787066;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .name-input { flex: 1 1 180px; }
 .date-label { margin-left: 6px; }
 .date-input { flex: 0 1 180px; }
@@ -1397,6 +1404,10 @@ button {
 }
 
 .coworkers-block {
+  margin-top: 22px;
+}
+
+.extra-hours-block {
   margin-top: 22px;
 }
 

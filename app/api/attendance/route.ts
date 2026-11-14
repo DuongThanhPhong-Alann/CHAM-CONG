@@ -36,11 +36,15 @@ export async function POST(request: Request) {
     const employeeName = String(body.employeeName || "").trim();
     const date = String(body.date || "");
     const requestedShifts = Array.isArray(body.shifts) ? body.shifts : [];
+    const extraHours = body.extraHours === undefined ? 0 : body.extraHours;
     const coworkers = Array.isArray(body.coworkers)
       ? body.coworkers.map((name: unknown) => String(name).trim()).filter(Boolean)
       : [];
     if (!employeeName || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !requestedShifts.length) {
       return NextResponse.json({ error: "Vui lòng nhập tên, ngày làm và chọn ít nhất một ca" }, { status: 400 });
+    }
+    if (typeof extraHours !== "number" || !Number.isFinite(extraHours) || extraHours < 0) {
+      return NextResponse.json({ error: "Giờ làm thêm phải là số không âm" }, { status: 400 });
     }
     const codes = requestedShifts.map((shift: { code?: unknown }) => shift?.code);
     if (codes.some((code: unknown) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
@@ -53,13 +57,13 @@ export async function POST(request: Request) {
     if (shifts.some((shift) => shift.code === "O") && shifts.length > 1) {
       return NextResponse.json({ error: "Ca nghỉ không thể chọn cùng ca làm khác" }, { status: 400 });
     }
-    const totalHours = shifts.reduce((sum, shift) => sum + shift.hours, 0);
+    const totalHours = shifts.reduce((sum, shift) => sum + shift.hours, 0) + extraHours;
     if (!Number.isFinite(totalHours) || totalHours < 0 || totalHours > 14) {
       return NextResponse.json({ error: "Tổng giờ mỗi ngày không được vượt quá 14 tiếng" }, { status: 400 });
     }
     const saved = await Attendance.findOneAndUpdate(
       { employeeName, date },
-      { employeeName, date, shifts, coworkers, totalHours },
+      { employeeName, date, shifts, coworkers, extraHours, totalHours },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
     );
     return NextResponse.json({ attendance: saved });
