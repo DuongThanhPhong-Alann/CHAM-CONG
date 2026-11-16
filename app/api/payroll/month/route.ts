@@ -28,8 +28,9 @@ export async function GET(request: Request) {
     const endDate = addDays(lastWeek, 6);
 
     const [attendance, weeklyPays] = await Promise.all([
-      Attendance.find({ employeeName, date: { $gte: firstWeek, $lte: endDate } })
-        .select({ date: 1, totalHours: 1 })
+      Attendance.find({ employeeName, date: { $gte: firstDate, $lte: endDate } })
+        .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1 })
+        .sort({ date: 1 })
         .lean(),
       WeeklyPay.find({ employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
         .select({ weekStart: 1, hourlyRate: 1 })
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
     const hoursByWeek = new Map<string, number>();
     for (const record of attendance) {
       const weekStart = mondayOf(record.date);
+      if (weekStart < firstWeek || weekStart > lastWeek) continue;
       hoursByWeek.set(weekStart, (hoursByWeek.get(weekStart) || 0) + record.totalHours);
     }
     const rateByWeek = new Map(weeklyPays.map((pay) => [pay.weekStart, pay.hourlyRate]));
@@ -61,7 +63,10 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json({ weeks });
+    return NextResponse.json({
+      weeks,
+      attendance: attendance.filter((record) => record.date <= lastDate),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể tải dữ liệu tính công tháng";
     return NextResponse.json({ error: message }, { status: 500 });

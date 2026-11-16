@@ -2327,6 +2327,10 @@ button {
   align-items: stretch;
 }
 
+.monthly-tab .monthly-export-panel {
+  grid-column: 1 / -1;
+}
+
 .payroll-tab .pay-card,
 .monthly-tab .pay-card {
   min-height: 100%;

@@ -26,7 +26,7 @@
 - **Ca trong tuần · text:** xem lịch từ thứ Hai đến Chủ nhật, danh sách ca đã ghi và sao chép text chốt công cho đúng tuần đang chọn.
 - **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca, nhập giờ làm thêm theo bước 0,5 giờ (ví dụ 0,5 giờ cho 30 phút) và nhập tên người làm chung nếu có. Giờ làm thêm được cộng vào tổng giờ, lương tuần và lương tháng.
 - **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca, tổng lương của tuần cập nhật theo hệ số đã lưu.
-- **Tính công theo tháng:** xem tổng giờ và cộng tiền công của các tuần bắt đầu trong tháng. Tuần được tính trọn theo hệ số riêng đã lưu; tháng nào còn tuần có giờ làm nhưng chưa có hệ số sẽ chưa hiện tổng tiền.
+- **Tính công theo tháng:** xem tổng giờ và cộng tiền công của các tuần bắt đầu trong tháng. Tuần được tính trọn theo hệ số riêng đã lưu; tháng nào còn tuần có giờ làm nhưng chưa có hệ số sẽ chưa hiện tổng tiền. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
 
 Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả tuần chưa nhập hệ số. Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
 
@@ -44,4 +44,4 @@ Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả t
 | FB | 14–22 | 8 |
 | O | Nghỉ | 0 |
 
-Có thể chọn nhiều ca trong ngày; tổng giờ ca cộng giờ làm thêm tối đa 14 tiếng/ngày. Tuần tính từ thứ Hai đến Chủ nhật. Text chốt công chỉ lấy các ngày có giờ làm trong tuần đang chọn. Hệ số lương được lưu riêng cho từng nhân viên và từng tuần.
+Có thể chọn nhiều ca trong ngày; tổng giờ ca cộng giờ làm thêm tối đa 14 tiếng/ngày. Tuần tính từ thứ Hai đến Chủ nhật. Text chốt công tuần chỉ lấy các ngày có giờ làm đến ngày đang chọn trong tuần; text tháng chỉ lấy các ngày có giờ làm trong tháng đang chọn. Hệ số lương được lưu riêng cho từng nhân viên và từng tuần.

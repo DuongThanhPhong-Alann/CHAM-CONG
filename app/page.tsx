@@ -45,6 +45,8 @@ type WeeklySummary = {
   pay: number | null;
 };
 
+type MonthlyAttendanceEntry = AttendanceEntry;
+
 const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const SHORT_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const TAB_LABELS = {
@@ -77,7 +79,7 @@ function formatMonthLabel(month: string) {
   return new Date(year, number - 1, 1, 12).toLocaleDateString("vi-VN", { month: "long", year: "numeric" });
 }
 
-function createExportText(employeeName: string, records: AttendanceEntry[], throughDate: string) {
+function createExportText(employeeName: string, records: AttendanceEntry[], throughDate: string, heading = "Chốt công") {
   const lines = records
     .filter((record) => record.totalHours > 0 && (!throughDate || record.date <= throughDate))
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -90,7 +92,7 @@ function createExportText(employeeName: string, records: AttendanceEntry[], thro
       const extraHours = record.extraHours ?? 0;
       return `${dateLabel(record.date)}: ${intervals} (${record.totalHours}${extraHours > 0 ? `, gồm ${extraHours} giờ làm thêm` : ""})`;
     });
-  return ["Chốt công", employeeName.trim() || "Nhân viên", ...lines].join("\n");
+  return [heading, employeeName.trim() || "Nhân viên", ...lines].join("\n");
 }
 
 export default function Home() {
@@ -99,6 +101,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
+  const [monthlyAttendance, setMonthlyAttendance] = useState<MonthlyAttendanceEntry[]>([]);
   const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
   const [extraHoursDraft, setExtraHoursDraft] = useState("0");
@@ -136,6 +139,10 @@ export default function Home() {
   const monthlyMissingRates = monthlyWeeks.filter((week) => week.hours > 0 && week.hourlyRate === null).length;
   const monthlyPay = monthlyMissingRates > 0 ? null : monthlyWeeks.reduce((total, week) => total + (week.pay || 0), 0);
   const exportText = useMemo(() => createExportText(employeeName, attendance, selectedDate), [employeeName, attendance, selectedDate]);
+  const monthlyExportText = useMemo(
+    () => createExportText(employeeName, monthlyAttendance, "", `Chốt công ${formatMonthLabel(selectedMonth)}`),
+    [employeeName, monthlyAttendance, selectedMonth],
+  );
 
   async function loadWeek(week: string, name: string) {
     if (!week) return;
@@ -163,15 +170,19 @@ export default function Home() {
     if (!month) return;
     setMonthlyLoading(true);
     setError("");
+    setMonthlyWeeks([]);
+    setMonthlyAttendance([]);
     try {
       const params = new URLSearchParams({ month, employee: name.trim() || "Thanh Phong" });
       const response = await fetch(`/api/payroll/month?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không tải được dữ liệu tháng");
       setMonthlyWeeks(data.weeks as WeeklySummary[]);
+      setMonthlyAttendance(data.attendance as MonthlyAttendanceEntry[]);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Không tải được dữ liệu tháng");
       setMonthlyWeeks([]);
+      setMonthlyAttendance([]);
     } finally {
       setMonthlyLoading(false);
     }
@@ -294,9 +305,9 @@ export default function Home() {
     }
   }
 
-  async function copyText() {
+  async function copyText(text = exportText) {
     try {
-      await navigator.clipboard.writeText(exportText);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -893,6 +904,21 @@ export default function Home() {
                   </div>
                 )}
                 {!monthlyLoading && <div className="payroll-total"><span>Cộng {monthlyWeeks.length} tuần · {monthlyHours} giờ</span><strong>{monthlyPay === null ? "—" : currency.format(monthlyPay)}</strong></div>}
+              </section>
+            )}
+
+            {activeTab === "monthly" && (
+              <section className="panel export-panel monthly-export-panel">
+                <div className="section-heading export-heading">
+                  <div className="heading-icon heading-icon-violet"><FileText size={18} /></div>
+                  <div><h2>Text chốt công tháng</h2><p>{formatMonthLabel(selectedMonth)} · chỉ gồm ngày trong tháng</p></div>
+                </div>
+                <div className="export-preview">
+                  <pre>{monthlyExportText}</pre>
+                  <button type="button" className="copy-button" aria-label="Sao chép text chốt công tháng" onClick={() => copyText(monthlyExportText)}>{copied ? <Check size={16} /> : <Copy size={16} />}</button>
+                </div>
+                <button className="export-button" type="button" onClick={() => copyText(monthlyExportText)}>{copied ? <><Check size={16} /> Đã sao chép</> : <><Copy size={16} /> Sao chép text tháng</>}</button>
+                <div className="export-footnote"><span><ArrowDownToLine size={14} /> Dán vào nhóm chốt công</span><span>{monthlyAttendance.filter((item) => item.totalHours > 0).length} ngày</span></div>
               </section>
             )}
           </aside>
