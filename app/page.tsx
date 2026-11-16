@@ -828,9 +828,9 @@ export default function Home() {
               </div>
               <div className="export-preview">
                 <pre>{exportText}</pre>
-                <button type="button" className="copy-button" aria-label="Sao chép nội dung" onClick={copyText}>{copied ? <Check size={16} /> : <Copy size={16} />}</button>
+                <button type="button" className="copy-button" aria-label="Sao chép nội dung" onClick={() => copyText()}>{copied ? <Check size={16} /> : <Copy size={16} />}</button>
               </div>
-              <button className="export-button" type="button" onClick={copyText}>{copied ? <><Check size={16} /> Đã sao chép</> : <><Copy size={16} /> Sao chép text</>}</button>
+              <button className="export-button" type="button" onClick={() => copyText()}>{copied ? <><Check size={16} /> Đã sao chép</> : <><Copy size={16} /> Sao chép text</>}</button>
               <div className="export-footnote"><span><ArrowDownToLine size={14} /> Dán vào nhóm chốt công</span><span>{attendance.filter((item) => item.totalHours > 0 && item.date <= selectedDate).length} ngày</span></div>
             </section>
             )}
