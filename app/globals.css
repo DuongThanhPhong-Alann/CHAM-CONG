@@ -1411,6 +1411,66 @@ button {
   margin-top: 22px;
 }
 
+.actual-times-block {
+  margin-top: 22px;
+}
+
+.actual-times-hint {
+  display: block;
+  margin-top: 3px;
+}
+
+.actual-time-list {
+  display: grid;
+  gap: 9px;
+}
+
+.actual-time-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) minmax(0, 1fr) minmax(110px, auto);
+  align-items: end;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e1d7c5;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.actual-time-code {
+  align-self: center;
+  color: #075985;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  text-align: center;
+}
+
+.actual-time-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: #6e665c;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.actual-time-input {
+  height: 40px;
+  padding: 0 8px;
+}
+
+.actual-time-input input {
+  text-align: center;
+}
+
+.actual-time-duration {
+  align-self: center;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .field-hint {
   color: #787066;
   font-size: 11px;
@@ -2106,6 +2166,13 @@ button {
   white-space: nowrap;
 }
 
+.record-shift-summary {
+  flex-basis: 100%;
+  color: #6e665c;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 .delete-button {
   display: grid;
   place-items: center;
@@ -2487,6 +2554,17 @@ button {
 
   .shift-hours {
     font-size: 10.5px;
+  }
+
+  .actual-time-row {
+    grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .actual-time-duration {
+    grid-column: 2 / -1;
+    text-align: left;
   }
 
   .day-name-full { display: none; }

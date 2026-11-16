@@ -35,7 +35,9 @@ export async function POST(request: Request) {
     const body = await request.json();
     const employeeName = String(body.employeeName || "").trim();
     const date = String(body.date || "");
-    const requestedShifts = Array.isArray(body.shifts) ? body.shifts : [];
+    const requestedShifts = Array.isArray(body.shifts)
+      ? body.shifts as { code?: unknown; start?: unknown; end?: unknown }[]
+      : [];
     const extraHours = body.extraHours === undefined ? 0 : body.extraHours;
     const coworkers = Array.isArray(body.coworkers)
       ? body.coworkers.map((name: unknown) => String(name).trim()).filter(Boolean)
@@ -46,13 +48,34 @@ export async function POST(request: Request) {
     if (typeof extraHours !== "number" || !Number.isFinite(extraHours) || extraHours < 0) {
       return NextResponse.json({ error: "Giờ làm thêm phải là số không âm" }, { status: 400 });
     }
-    const codes = requestedShifts.map((shift: { code?: unknown }) => shift?.code);
+    const codes = requestedShifts.map((shift) => shift?.code);
     if (codes.some((code: unknown) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
       return NextResponse.json({ error: "Danh sách ca làm không hợp lệ" }, { status: 400 });
     }
-    const shifts = (codes as ShiftCode[]).map((code) => {
+    const invalidShiftTime = requestedShifts.some((requestedShift, index) => {
+      const code = codes[index] as ShiftCode;
+      if (code === "O") return false;
       const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
-      return { code: option.code, start: option.start, end: option.end, hours: option.hours };
+      const start = requestedShift.start === undefined ? option.start : Number(requestedShift.start);
+      const end = requestedShift.end === undefined ? option.end : Number(requestedShift.end);
+      return !Number.isFinite(start)
+        || !Number.isFinite(end)
+        || start < 0
+        || end > 24
+        || end <= start
+        || !Number.isInteger(start * 2)
+        || !Number.isInteger(end * 2);
+    });
+    if (invalidShiftTime) {
+      return NextResponse.json({ error: "Giờ vào và giờ tan phải hợp lệ, theo bước 30 phút" }, { status: 400 });
+    }
+    const shifts = (codes as ShiftCode[]).map((code, index) => {
+      const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
+      if (code === "O") return { code: option.code, start: option.start, end: option.end, hours: option.hours };
+      const requestedShift = requestedShifts[index];
+      const start = requestedShift.start === undefined ? option.start : Number(requestedShift.start);
+      const end = requestedShift.end === undefined ? option.end : Number(requestedShift.end);
+      return { code: option.code, start, end, hours: end - start };
     });
     if (shifts.some((shift) => shift.code === "O") && shifts.length > 1) {
       return NextResponse.json({ error: "Ca nghỉ không thể chọn cùng ca làm khác" }, { status: 400 });

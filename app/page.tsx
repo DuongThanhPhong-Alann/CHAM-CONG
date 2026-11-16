@@ -46,6 +46,7 @@ type WeeklySummary = {
 };
 
 type MonthlyAttendanceEntry = AttendanceEntry;
+type ShiftTimeDraft = { start: string; end: string };
 
 const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const SHORT_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -59,6 +60,40 @@ const currency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "
 
 function hoursLabel(hours: number) {
   return `${hours} tiếng`;
+}
+
+function hoursToTimeInput(hours: number) {
+  const minutes = Math.round(hours * 60);
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function timeInputToHours(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return Number.NaN;
+  return (Number(match[1]) * 60 + Number(match[2])) / 60;
+}
+
+function formatWorkTime(hours: number) {
+  const minutes = Math.round(hours * 60);
+  const wholeHours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes === 0 ? String(wholeHours) : `${wholeHours}:${String(remainingMinutes).padStart(2, "0")}`;
+}
+
+function actualShifts(record: AttendanceEntry) {
+  const shifts = record.shifts.filter((shift) => shift.hours > 0).map((shift) => ({ ...shift }));
+  const extraHours = record.extraHours ?? 0;
+  if (extraHours > 0 && shifts.length > 0) {
+    const lastShift = shifts.reduce((latest, shift) => shift.end > latest.end ? shift : latest);
+    lastShift.end += extraHours;
+  }
+  return shifts.sort((a, b) => a.start - b.start);
+}
+
+function shiftTimeSummary(record: AttendanceEntry) {
+  return actualShifts(record)
+    .map((shift) => `${shift.code} ${formatWorkTime(shift.start)}-${formatWorkTime(shift.end)}`)
+    .join(" · ");
 }
 
 function withoutEndingPunctuation(value: string) {
@@ -84,13 +119,10 @@ function createExportText(employeeName: string, records: AttendanceEntry[], thro
     .filter((record) => record.totalHours > 0 && (!throughDate || record.date <= throughDate))
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((record) => {
-      const intervals = [...record.shifts]
-        .filter((shift) => shift.hours > 0)
-        .sort((a, b) => a.start - b.start)
-        .map((shift) => `${shift.start}-${shift.end}`)
+      const intervals = actualShifts(record)
+        .map((shift) => `${formatWorkTime(shift.start)}-${formatWorkTime(shift.end)}`)
         .join(", ");
-      const extraHours = record.extraHours ?? 0;
-      return `${dateLabel(record.date)}: ${intervals} (${record.totalHours}${extraHours > 0 ? `, gồm ${extraHours} giờ làm thêm` : ""})`;
+      return `${dateLabel(record.date)}: ${intervals} (${record.totalHours})`;
     });
   return [heading, employeeName.trim() || "Nhân viên", ...lines].join("\n");
 }
@@ -104,6 +136,7 @@ export default function Home() {
   const [monthlyAttendance, setMonthlyAttendance] = useState<MonthlyAttendanceEntry[]>([]);
   const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
+  const [shiftTimeDrafts, setShiftTimeDrafts] = useState<Record<string, ShiftTimeDraft>>({});
   const [extraHoursDraft, setExtraHoursDraft] = useState("0");
   const [coworkersInput, setCoworkersInput] = useState("");
   const [hourlyRate, setHourlyRate] = useState<number | null>(null);
@@ -125,14 +158,25 @@ export default function Home() {
 
   const weekStart = useMemo(() => (selectedDate ? mondayOf(selectedDate) : ""), [selectedDate]);
   const weekEnd = useMemo(() => (weekStart ? addDays(weekStart, 6) : ""), [weekStart]);
-  const selectedShifts = useMemo(
-    () => SHIFT_OPTIONS.filter((shift) => selectedCodes.includes(shift.code)),
-    [selectedCodes],
-  );
-  const selectedHours = selectedShifts.reduce((total, shift) => total + shift.hours, 0);
+  const selectedShifts = selectedCodes.map((code) => {
+    const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
+    if (code === "O") return { code, start: 0, end: 0, hours: 0, valid: true };
+    const draft = shiftTimeDrafts[code] ?? { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) };
+    const start = timeInputToHours(draft.start);
+    const end = timeInputToHours(draft.end);
+    const valid = Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end <= 24 && end > start;
+    return { code, start, end, hours: valid ? end - start : 0, valid };
+  });
+  const validShiftTimes = selectedShifts.every((shift) => shift.valid);
   const parsedExtraHours = extraHoursDraft.trim() === "" ? 0 : Number(extraHoursDraft);
-  const validExtraHours = Number.isFinite(parsedExtraHours) && parsedExtraHours >= 0;
-  const selectedTotalHours = selectedHours + (validExtraHours ? parsedExtraHours : 0);
+  const hasWorkShift = selectedShifts.some((shift) => shift.code !== "O");
+  const validExtraHours = Number.isFinite(parsedExtraHours)
+    && parsedExtraHours >= 0
+    && (parsedExtraHours === 0 || hasWorkShift);
+  const selectedTotalHours = selectedShifts.reduce((total, shift) => total + shift.hours, 0) + (validExtraHours ? parsedExtraHours : 0);
+  const latestSelectedShift = selectedShifts
+    .filter((shift) => shift.code !== "O")
+    .sort((a, b) => b.end - a.end)[0];
   const weeklyHours = attendance.reduce((total, record) => total + record.totalHours, 0);
   const estimatedPay = hourlyRate === null ? null : weeklyHours * hourlyRate;
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
@@ -204,18 +248,31 @@ export default function Home() {
     const existing = attendance.find((record) => record.date === selectedDate);
     setSelectedCodes(existing?.shifts.map((shift) => shift.code) ?? []);
     setExtraHoursDraft(String(existing?.extraHours ?? 0));
+    const drafts: Record<string, ShiftTimeDraft> = {};
+    if (existing) {
+      for (const shift of existing.shifts) {
+        drafts[shift.code] = {
+          start: hoursToTimeInput(shift.start),
+          end: hoursToTimeInput(shift.end),
+        };
+      }
+    }
+    setShiftTimeDrafts(drafts);
     setCoworkersInput(existing?.coworkers.join(", ") ?? "");
   }, [selectedDate, attendance]);
 
   function toggleShift(code: ShiftCode) {
     setMessage("");
     const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
-    setSelectedCodes((current) => {
-      if (current.includes(code)) return current.filter((item) => item !== code);
-      if (option.hours === 0) return [code];
-      const working = current.filter((item) => item !== "O");
-      return [...working, code];
+    if (selectedCodes.includes(code)) {
+      setSelectedCodes((current) => current.filter((item) => item !== code));
+      return;
+    }
+    setShiftTimeDrafts((current) => current[code] ? current : {
+      ...current,
+      [code]: { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) },
     });
+    setSelectedCodes((current) => option.hours === 0 ? [code] : [...current.filter((item) => item !== "O"), code]);
   }
 
   async function saveAttendance() {
@@ -223,8 +280,14 @@ export default function Home() {
       setError("Hãy chọn ngày và ít nhất một ca làm");
       return;
     }
+    if (!validShiftTimes) {
+      setError("Giờ vào và giờ ra của từng ca chưa hợp lệ");
+      return;
+    }
     if (!validExtraHours) {
-      setError("Giờ làm thêm phải là số không âm");
+      setError(parsedExtraHours > 0 && !hasWorkShift
+        ? "Hãy chọn ca làm trước khi nhập giờ làm thêm"
+        : "Giờ làm thêm phải là số không âm");
       return;
     }
     if (selectedTotalHours > 14) {
@@ -678,7 +741,7 @@ export default function Home() {
 
               <div className="shift-title-row">
                 <div><h3>Chọn ca</h3><p>Ca kết thúc lúc 23h được tính đến 22h</p></div>
-                <span className={`hours-chip ${selectedTotalHours > 14 || !validExtraHours ? "hours-over" : ""}`}><Clock3 size={14} /> {selectedTotalHours} / 14 giờ</span>
+                <span className={`hours-chip ${selectedTotalHours > 14 || !validShiftTimes || !validExtraHours ? "hours-over" : ""}`}><Clock3 size={14} /> {selectedTotalHours} / 14 giờ</span>
               </div>
               <div className="shift-grid">
                 {SHIFT_OPTIONS.map((shift) => {
@@ -701,16 +764,59 @@ export default function Home() {
                   );
                 })}
               </div>
+              {!validShiftTimes && (
+                <div className="inline-warning">
+                  Giờ kết thúc phải sau giờ bắt đầu.
+                </div>
+              )}
+              {!validExtraHours && (
+                <div className="inline-warning">
+                  {parsedExtraHours > 0 && !hasWorkShift ? "Chọn ca làm trước khi nhập giờ làm thêm." : "Giờ làm thêm phải là số không âm."}
+                </div>
+              )}
               {selectedTotalHours > 14 && (
                 <div className="inline-warning">
-                  Tổng giờ ca và giờ làm thêm vượt quá 14 tiếng/ngày.
+                  Tổng giờ làm trong một ngày không được vượt quá 14 tiếng.
+                </div>
+              )}
+
+              {selectedShifts.some((shift) => shift.code !== "O") && (
+                <div className="field-block actual-times-block">
+                  <div>
+                    <span className="field-label">Giờ làm thực tế</span>
+                    <span className="field-hint actual-times-hint">Chỉnh khung giờ thực tế; giờ làm thêm sẽ nối tiếp vào giờ tan của ca cuối.</span>
+                  </div>
+                  <div className="actual-time-list">
+                    {selectedShifts.filter((shift) => shift.code !== "O").map((shift) => {
+                      const option = SHIFT_OPTIONS.find((item) => item.code === shift.code)!;
+                      const draft = shiftTimeDrafts[shift.code] ?? {
+                        start: hoursToTimeInput(option.start),
+                        end: hoursToTimeInput(option.end),
+                      };
+                      return (
+                        <div className="actual-time-row" key={shift.code}>
+                          <strong className="actual-time-code">{shift.code}</strong>
+                          <label className="actual-time-field" htmlFor={`shift-start-${shift.code}`}>
+                            <span>Giờ vào</span>
+                            <div className="input-wrap actual-time-input"><input id={`shift-start-${shift.code}`} type="time" step="1800" value={draft.start} onChange={(event) => setShiftTimeDrafts((current) => ({ ...current, [shift.code]: { ...draft, start: event.target.value } }))} /></div>
+                          </label>
+                          <label className="actual-time-field" htmlFor={`shift-end-${shift.code}`}>
+                            <span>Giờ tan</span>
+                            <div className="input-wrap actual-time-input"><input id={`shift-end-${shift.code}`} type="time" step="1800" value={draft.end} onChange={(event) => setShiftTimeDrafts((current) => ({ ...current, [shift.code]: { ...draft, end: event.target.value } }))} /></div>
+                          </label>
+                          <span className="actual-time-duration">{shift.valid && validExtraHours ? `${hoursLabel(shift.hours + (shift.code === latestSelectedShift?.code ? parsedExtraHours : 0))} · tan ${formatWorkTime(shift.end + (shift.code === latestSelectedShift?.code ? parsedExtraHours : 0))}` : "Kiểm tra giờ"}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className="field-hint">Ví dụ: chọn thêm 0,5 giờ cho ca A sẽ hiện giờ tan 12:30; ca C vào sớm thì sửa giờ vào thành 16:00.</span>
                 </div>
               )}
 
               <div className="field-block extra-hours-block">
                 <label className="field-label" htmlFor="extra-hours">Giờ làm thêm <span>(nếu có)</span></label>
                 <div className="input-wrap full-input"><Clock3 size={17} /><input id="extra-hours" type="number" min="0" step="0.5" value={extraHoursDraft} onChange={(event) => setExtraHoursDraft(event.target.value)} placeholder="Ví dụ: 0.5" /><span className="input-suffix">giờ</span></div>
-                <span className="field-hint">Nhập 0.5 nếu làm thêm 30 phút; giờ này sẽ được cộng vào tổng công.</span>
+                <span className="field-hint">Nhập theo bước 0,5 giờ; thời gian này được cộng vào giờ tan của ca cuối.</span>
               </div>
 
               <div className="field-block coworkers-block">
@@ -721,7 +827,7 @@ export default function Home() {
 
               <div className="entry-footer">
                 <div className="selected-summary">{selectedCodes.length ? <><CheckCheck size={16} /> {selectedCodes.includes("O") ? "Đã chọn ngày nghỉ" : `Đã chọn ${selectedCodes.length} ca`} · Tổng {hoursLabel(selectedTotalHours)}</> : <><Clock3 size={16} /> Chưa chọn ca nào</>}</div>
-                <button className="primary-button" type="button" disabled={saving || loading || !selectedCodes.length || !validExtraHours || selectedTotalHours > 14} onClick={saveAttendance}>
+                <button className="primary-button" type="button" disabled={saving || loading || !selectedCodes.length || !validShiftTimes || !validExtraHours || selectedTotalHours > 14} onClick={saveAttendance}>
                   {saving ? "Đang lưu…" : <><Check size={17} /> Lưu ngày công</>}
                 </button>
               </div>
@@ -856,8 +962,8 @@ export default function Home() {
                             );
                           })}
                         </div>
+                        {shiftTimeSummary(record) && <span className="record-shift-summary">{shiftTimeSummary(record)}</span>}
                         <span className="record-hours">{record.totalHours} giờ</span>
-                        {(record.extraHours ?? 0) > 0 && <span className="coworker-names">+{record.extraHours} giờ làm thêm</span>}
                         {record.coworkers.length > 0 && <span className="coworker-names"><UsersRound size={12} /> {record.coworkers.join(", ")}</span>}
                       </div>
                       <button className="delete-button" type="button" aria-label={`Xóa ngày ${dateLabel(record.date)}`} onClick={() => deleteAttendance(record.date)}><Trash2 size={15} /></button>
@@ -877,7 +983,7 @@ export default function Home() {
                   <div className="payroll-day-list">
                     {[...attendance].sort((a, b) => a.date.localeCompare(b.date)).map((record) => (
                       <div className="payroll-day" key={record._id}>
-                        <div><strong>{dateLabel(record.date)}</strong><span>{record.shifts.map((shift) => shift.code).join(" · ")}{(record.extraHours ?? 0) > 0 && ` · +${record.extraHours}h làm thêm`}</span></div>
+                        <div><strong>{dateLabel(record.date)}</strong><span>{shiftTimeSummary(record)}</span></div>
                         <span className="payroll-day-hours">{record.totalHours} giờ</span>
                         {hourlyRate !== null && <span className="payroll-day-amount">{currency.format(record.totalHours * hourlyRate)}</span>}
                       </div>
