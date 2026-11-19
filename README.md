@@ -47,3 +47,11 @@ Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả t
 | O | Nghỉ | 0 |
 
 Có thể chọn nhiều ca trong ngày; tổng giờ ca cộng giờ làm thêm tối đa 14 tiếng/ngày. Tuần tính từ thứ Hai đến Chủ nhật. Text chốt công hiển thị giờ vào/ra thực tế, có cộng giờ làm thêm vào giờ tan của ca cuối. Text chốt công tuần chỉ lấy các ngày có giờ làm đến ngày đang chọn trong tuần; text tháng chỉ lấy các ngày có giờ làm trong tháng đang chọn. Hệ số lương được lưu riêng cho từng nhân viên và từng tuần.
+
+## Đăng nhập, tài khoản và nhiều bảng chấm công
+
+- Cấu hình `AUTH_SESSION_SECRET` (chuỗi ngẫu nhiên tối thiểu 32 ký tự), `AUTH_ADMIN_NAME`, `AUTH_ADMIN_PHONE`, `AUTH_ADMIN_EMAIL` và `AUTH_ADMIN_PASSWORD` cùng môi trường với `MONGODB_URI`. Tài khoản admin được tạo một lần từ các giá trị này; mật khẩu lưu dạng băm có muối, phiên đăng nhập dùng cookie HttpOnly.
+- Lần đầu mở ứng dụng, dữ liệu chấm công và hệ số lương cũ được chuyển vào tài khoản admin và bảng **Thăng Hoa Thạch Lam**. Việc chuyển dữ liệu được đánh dấu trong MongoDB để không chạy lại mỗi lần tải trang.
+- Mỗi tài khoản chỉ xem được bảng và dữ liệu của chính tài khoản đó. API kiểm tra quyền admin khi liệt kê, thêm, sửa hoặc xóa tài khoản; giao diện tài khoản chỉ hiện với admin.
+- Sau đăng nhập có thể chọn hoặc tạo bảng chấm công. Mỗi bảng lưu `logicKey` riêng để bổ sung cách tính khác sau này; bảng mới hiện dùng logic chấm công hiện tại.
+- Khi chạy trên Vercel hoặc máy chủ khác, thêm các biến xác thực nêu trên vào phần Environment Variables của môi trường đó rồi triển khai lại. `.env.local` chỉ dùng tại máy đang phát triển và không được đưa lên Git.

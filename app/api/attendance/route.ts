@@ -3,13 +3,18 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { SHIFT_OPTIONS, isShiftCode, type ShiftCode } from "@/lib/shifts";
 import Attendance from "@/models/Attendance";
 import WeeklyPay from "@/models/WeeklyPay";
+import { authorizeTimesheet } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    await connectToDatabase();
     const { searchParams } = new URL(request.url);
+    const access = await authorizeTimesheet(searchParams.get("timesheetId"));
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const employeeName = (searchParams.get("employee") || "Thanh Phong").trim();
     const weekStart = searchParams.get("weekStart");
     if (!weekStart || !/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
@@ -19,8 +24,8 @@ export async function GET(request: Request) {
     weekEnd.setDate(weekEnd.getDate() + 6);
     const endString = `${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, "0")}-${String(weekEnd.getDate()).padStart(2, "0")}`;
     const [attendance, weeklyPay] = await Promise.all([
-      Attendance.find({ employeeName, date: { $gte: weekStart, $lte: endString } }).sort({ date: 1 }).lean(),
-      WeeklyPay.findOne({ employeeName, weekStart }).lean(),
+      Attendance.find({ ownerId, timesheetId, employeeName, date: { $gte: weekStart, $lte: endString } }).sort({ date: 1 }).lean(),
+      WeeklyPay.findOne({ ownerId, timesheetId, employeeName, weekStart }).lean(),
     ]);
     return NextResponse.json({ attendance, hourlyRate: weeklyPay?.hourlyRate ?? null });
   } catch (error) {
@@ -31,8 +36,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await connectToDatabase();
     const body = await request.json();
+    const access = await authorizeTimesheet(body.timesheetId);
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const employeeName = String(body.employeeName || "").trim();
     const date = String(body.date || "");
     const requestedShifts = Array.isArray(body.shifts)
@@ -89,8 +98,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Tổng giờ mỗi ngày không được vượt quá 14 tiếng" }, { status: 400 });
     }
     const saved = await Attendance.findOneAndUpdate(
-      { employeeName, date },
-      { employeeName, date, shifts, coworkers, extraHours, totalHours, actualPay },
+      { ownerId, timesheetId, employeeName, date },
+      { ownerId, timesheetId, employeeName, date, shifts, coworkers, extraHours, totalHours, actualPay },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
     );
     return NextResponse.json({ attendance: saved });
@@ -102,11 +111,15 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await connectToDatabase();
     const body = await request.json();
+    const access = await authorizeTimesheet(body.timesheetId);
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const employeeName = String(body.employeeName || "").trim();
     const date = String(body.date || "");
-    await Attendance.deleteOne({ employeeName, date });
+    await Attendance.deleteOne({ ownerId, timesheetId, employeeName, date });
     return NextResponse.json({ ok: true });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa ngày công";

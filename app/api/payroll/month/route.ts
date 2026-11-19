@@ -3,13 +3,18 @@ import { addDays, mondayOf } from "@/lib/dates";
 import { connectToDatabase } from "@/lib/mongodb";
 import Attendance from "@/models/Attendance";
 import WeeklyPay from "@/models/WeeklyPay";
+import { authorizeTimesheet } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    await connectToDatabase();
     const { searchParams } = new URL(request.url);
+    const access = await authorizeTimesheet(searchParams.get("timesheetId"));
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const employeeName = (searchParams.get("employee") || "Thanh Phong").trim();
     const month = searchParams.get("month") || "";
     const match = /^(\d{4})-(\d{2})$/.exec(month);
@@ -26,11 +31,11 @@ export async function GET(request: Request) {
     const lastWeek = mondayOf(lastDate);
 
     const [attendance, weeklyPays] = await Promise.all([
-      Attendance.find({ employeeName, date: { $gte: firstDate, $lte: lastDate } })
+      Attendance.find({ ownerId, timesheetId, employeeName, date: { $gte: firstDate, $lte: lastDate } })
         .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1, actualPay: 1 })
         .sort({ date: 1 })
         .lean(),
-      WeeklyPay.find({ employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
+      WeeklyPay.find({ ownerId, timesheetId, employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
         .select({ weekStart: 1, hourlyRate: 1 })
         .lean(),
     ]);

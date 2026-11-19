@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import {
   ArrowDownToLine,
@@ -52,6 +52,9 @@ type WeeklySummary = {
 
 type MonthlyAttendanceEntry = AttendanceEntry;
 type ShiftTimeDraft = { start: string; end: string };
+type SignedInAccount = { id: string; displayName: string; phone: string; email: string; role: "admin" | "user" };
+type TimesheetOption = { id: string; name: string; logicKey: string };
+type ManagedAccount = SignedInAccount;
 
 const WEEKDAYS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
 const SHORT_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -164,11 +167,58 @@ export default function Home() {
   const [successAction, setSuccessAction] = useState<"add" | "delete" | "edit">("add");
   const [copied, setCopied] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [authView, setAuthView] = useState<"loading" | "login" | "sheets" | "accounts" | "app">("loading");
+  const [authAccount, setAuthAccount] = useState<SignedInAccount | null>(null);
+  const [selectedTimesheet, setSelectedTimesheet] = useState<TimesheetOption | null>(null);
+  const [timesheets, setTimesheets] = useState<TimesheetOption[]>([]);
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [newTimesheetName, setNewTimesheetName] = useState("");
+  const [managedAccounts, setManagedAccounts] = useState<ManagedAccount[]>([]);
+  const [accountEditId, setAccountEditId] = useState("");
+  const [accountDisplayName, setAccountDisplayName] = useState("");
+  const [accountPhone, setAccountPhone] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
 
   useEffect(() => {
     const today = localDateString(new Date());
     setSelectedDate(today);
     setSelectedMonth(today.slice(0, 7));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function restoreSession() {
+      try {
+        const response = await fetch("/api/auth/session", { cache: "no-store" });
+        const data = await response.json();
+        if (cancelled) return;
+        if (!response.ok) {
+          setAuthError(data.error || "Không thể kết nối hệ thống đăng nhập");
+          setAuthView("login");
+          return;
+        }
+        if (data.account) {
+          setAuthAccount(data.account as SignedInAccount);
+          await loadTimesheetOptions();
+          if (!cancelled) setAuthView("sheets");
+        } else {
+          setAuthView("login");
+        }
+      } catch {
+        if (!cancelled) {
+          setAuthError("Không thể kết nối hệ thống đăng nhập");
+          setAuthView("login");
+        }
+      }
+    }
+    void restoreSession();
+    return () => { cancelled = true; };
+    // Restore the signed-in account once when the app opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -281,11 +331,11 @@ export default function Home() {
   );
 
   async function loadWeek(week: string, name: string) {
-    if (!week) return;
+    if (!week || !selectedTimesheet) return;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ weekStart: week, employee: name.trim() || "Thanh Phong" });
+      const params = new URLSearchParams({ weekStart: week, employee: name.trim() || "Thanh Phong", timesheetId: selectedTimesheet.id });
       const response = await fetch(`/api/attendance?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không tải được dữ liệu tuần");
@@ -303,13 +353,13 @@ export default function Home() {
   }
 
   async function loadMonth(month: string, name: string) {
-    if (!month) return;
+    if (!month || !selectedTimesheet) return;
     setMonthlyLoading(true);
     setError("");
     setMonthlyWeeks([]);
     setMonthlyAttendance([]);
     try {
-      const params = new URLSearchParams({ month, employee: name.trim() || "Thanh Phong" });
+      const params = new URLSearchParams({ month, employee: name.trim() || "Thanh Phong", timesheetId: selectedTimesheet.id });
       const response = await fetch(`/api/payroll/month?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không tải được dữ liệu tháng");
@@ -325,16 +375,16 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (weekStart) void loadWeek(weekStart, employeeName);
+    if (authView === "app" && weekStart && selectedTimesheet) void loadWeek(weekStart, employeeName);
     // Load the selected employee's records whenever the week or employee changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weekStart, employeeName]);
+  }, [weekStart, employeeName, authView, selectedTimesheet?.id]);
 
   useEffect(() => {
-    if ((activeTab === "monthly" || activeTab === "sheet" || activeTab === "bulk") && selectedMonth) void loadMonth(selectedMonth, employeeName);
+    if (authView === "app" && selectedTimesheet && (activeTab === "monthly" || activeTab === "sheet" || activeTab === "bulk") && selectedMonth) void loadMonth(selectedMonth, employeeName);
     // Load the monthly summary when its tab, month, or employee changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, selectedMonth, employeeName]);
+  }, [activeTab, selectedMonth, employeeName, authView, selectedTimesheet?.id]);
 
   useEffect(() => {
     setBulkSelectedDates([]);
@@ -405,6 +455,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          timesheetId: selectedTimesheet?.id,
           employeeName: employeeName.trim() || "Thanh Phong",
           date: selectedDate,
           shifts: selectedShifts.map(({ code, start, end, hours }) => ({ code, start, end, hours })),
@@ -434,7 +485,7 @@ export default function Home() {
       const response = await fetch("/api/attendance", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeName: employeeName.trim() || "Thanh Phong", date }),
+        body: JSON.stringify({ timesheetId: selectedTimesheet?.id, employeeName: employeeName.trim() || "Thanh Phong", date }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không xóa được ngày công");
@@ -466,6 +517,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          timesheetId: selectedTimesheet?.id,
           employeeName: employeeName.trim() || "Thanh Phong",
           dates: bulkSelectedDates,
           shiftCode: bulkShiftCode,
@@ -500,7 +552,7 @@ export default function Home() {
       const response = await fetch("/api/attendance/bulk", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeName: employeeName.trim() || "Thanh Phong", dates: bulkSelectedDates }),
+        body: JSON.stringify({ timesheetId: selectedTimesheet?.id, employeeName: employeeName.trim() || "Thanh Phong", dates: bulkSelectedDates }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không xóa được công các ngày đã chọn");
@@ -528,7 +580,7 @@ export default function Home() {
       const response = await fetch("/api/payroll", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeName: employeeName.trim() || "Thanh Phong", weekStart, hourlyRate: parsed }),
+        body: JSON.stringify({ timesheetId: selectedTimesheet?.id, employeeName: employeeName.trim() || "Thanh Phong", weekStart, hourlyRate: parsed }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không lưu được hệ số lương");
@@ -559,6 +611,219 @@ export default function Home() {
     const next = new Date(year, month - 1 + offset, 1, 12);
     setSelectedMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}`);
   };
+
+  async function loadTimesheetOptions() {
+    const response = await fetch("/api/timesheets", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Không tải được các bảng chấm công");
+    const options = data.timesheets as TimesheetOption[];
+    setTimesheets(options);
+    return options;
+  }
+
+  async function finishSignIn(account: SignedInAccount) {
+    setAuthAccount(account);
+    setAuthError("");
+    try {
+      await loadTimesheetOptions();
+      setAuthView("sheets");
+      setLoginPassword("");
+    } catch (loadError) {
+      setAuthError(loadError instanceof Error ? loadError.message : "Không tải được các bảng chấm công");
+    }
+  }
+
+  async function submitLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: loginIdentifier, password: loginPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không thể đăng nhập");
+      await finishSignIn(data.account as SignedInAccount);
+    } catch (loginError) {
+      setAuthError(loginError instanceof Error ? loginError.message : "Không thể đăng nhập");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    setAuthAccount(null);
+    setSelectedTimesheet(null);
+    setTimesheets([]);
+    setAuthError("");
+    setAuthView("login");
+  }
+
+  function openTimesheet(sheet: TimesheetOption) {
+    setSelectedTimesheet(sheet);
+    setEmployeeName(authAccount?.displayName || "Thanh Phong");
+    setAttendance([]);
+    setMonthlyAttendance([]);
+    setMonthlyWeeks([]);
+    setHourlyRate(null);
+    setRateDraft("");
+    setActiveTab("week");
+    setIsDrawerOpen(false);
+    setError("");
+    setMessage("");
+    setAuthView("app");
+  }
+
+  async function createTimesheet(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/timesheets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newTimesheetName }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không tạo được bảng chấm công");
+      setTimesheets((current) => [...current, data.timesheet as TimesheetOption]);
+      setNewTimesheetName("");
+    } catch (createError) {
+      setAuthError(createError instanceof Error ? createError.message : "Không tạo được bảng chấm công");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function openAccountManager() {
+    if (authAccount?.role !== "admin") return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch("/api/accounts", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không tải được danh sách tài khoản");
+      setManagedAccounts(data.accounts as ManagedAccount[]);
+      setAccountEditId("");
+      setAccountDisplayName("");
+      setAccountPhone("");
+      setAccountEmail("");
+      setAccountPassword("");
+      setAuthView("accounts");
+    } catch (managerError) {
+      setAuthError(managerError instanceof Error ? managerError.message : "Không tải được danh sách tài khoản");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  function beginAccountEdit(account: ManagedAccount) {
+    setAccountEditId(account.id);
+    setAccountDisplayName(account.displayName);
+    setAccountPhone(account.phone);
+    setAccountEmail(account.email);
+    setAccountPassword("");
+  }
+
+  async function saveManagedAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch(accountEditId ? `/api/accounts/${accountEditId}` : "/api/accounts", {
+        method: accountEditId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayName: accountDisplayName, phone: accountPhone, email: accountEmail, password: accountPassword }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không lưu được tài khoản");
+      const responseList = await fetch("/api/accounts", { cache: "no-store" });
+      const listData = await responseList.json();
+      if (!responseList.ok) throw new Error(listData.error || "Không tải lại được danh sách tài khoản");
+      setManagedAccounts(listData.accounts as ManagedAccount[]);
+      setAccountEditId("");
+      setAccountDisplayName("");
+      setAccountPhone("");
+      setAccountEmail("");
+      setAccountPassword("");
+    } catch (saveError) {
+      setAuthError(saveError instanceof Error ? saveError.message : "Không lưu được tài khoản");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function deleteManagedAccount(account: ManagedAccount) {
+    if (!window.confirm(`Xóa tài khoản ${account.displayName} và toàn bộ bảng công của tài khoản này?`)) return;
+    setAuthBusy(true);
+    setAuthError("");
+    try {
+      const response = await fetch(`/api/accounts/${account.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không xóa được tài khoản");
+      setManagedAccounts((current) => current.filter((item) => item.id !== account.id));
+      if (accountEditId === account.id) setAccountEditId("");
+    } catch (deleteError) {
+      setAuthError(deleteError instanceof Error ? deleteError.message : "Không xóa được tài khoản");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  if (authView !== "app") {
+    return (
+      <main className="app-shell access-shell">
+        <div className="nature-scene" aria-hidden="true">
+          <svg className="nature-svg" viewBox="0 0 1440 500" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="accessSky" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#bce3f7" /><stop offset="1" stopColor="#efe8da" /></linearGradient>
+              <linearGradient id="accessWater" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#48b3dc" stopOpacity=".76" /><stop offset="1" stopColor="#d6eef6" stopOpacity=".3" /></linearGradient>
+            </defs>
+            <path fill="url(#accessSky)" d="M0 0h1440v300H0z" /><path fill="url(#accessWater)" d="M0 260h1440v240H0z" />
+            <path fill="#9fc5db" d="m0 290 170-130 130 105 150-160 145 185 190-150 160 155 160-125 190 150v80H0z" />
+            <path fill="#6e9fba" fillOpacity=".55" d="m0 330 185-90 160 85 165-105 150 90 170-95 180 105 170-90 260 100v80H0z" />
+          </svg>
+        </div>
+        <section className="access-card">
+          <a href="#top" className="access-brand"><span className="brand-mark"><Image src="/site-logo.png" alt="" width={68} height={38} priority /></span><span>chốt<span className="brand-light">công</span></span></a>
+          {authView === "loading" ? (
+            <div className="access-loading"><span className="live-dot" /> Đang kiểm tra đăng nhập…</div>
+          ) : authView === "login" ? (
+            <>
+              <div className="access-heading"><span className="eyebrow"><Waves size={13} /> BẢNG CÔNG TÁC & CHỐT CA</span><h1>Đăng nhập</h1><p>Đăng nhập để mở các bảng chấm công của bạn.</p></div>
+              <form className="access-form" onSubmit={submitLogin}>
+                <label>Số điện thoại hoặc email<input autoComplete="username" value={loginIdentifier} onChange={(event) => setLoginIdentifier(event.target.value)} placeholder="Nhập số điện thoại hoặc email" required /></label>
+                <label>Mật khẩu<input autoComplete="current-password" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="Nhập mật khẩu" required /></label>
+                {authError && <div className="access-error" role="alert">{authError}</div>}
+                <button className="primary-button access-submit" type="submit" disabled={authBusy}>{authBusy ? "Đang đăng nhập…" : "Đăng nhập"}</button>
+              </form>
+            </>
+          ) : authView === "sheets" ? (
+            <>
+              <div className="access-heading"><span className="eyebrow"><Table size={13} /> KHU VỰC LÀM VIỆC</span><h1>Chào {authAccount?.displayName}</h1><p>Chọn bảng chấm công muốn mở.</p></div>
+              <div className="timesheet-options">
+                {timesheets.map((sheet) => <button key={sheet.id} type="button" className="timesheet-option" onClick={() => openTimesheet(sheet)}><span className="timesheet-option-icon"><Table size={20} /></span><span><strong>{sheet.name}</strong><small>Bảng chấm công</small></span><ArrowRight size={19} /></button>)}
+                {timesheets.length === 0 && <div className="access-empty">Tài khoản chưa có bảng chấm công.</div>}
+              </div>
+              <form className="new-timesheet-form" onSubmit={createTimesheet}><label htmlFor="new-timesheet-name">Thêm bảng chấm công</label><div><input id="new-timesheet-name" value={newTimesheetName} onChange={(event) => setNewTimesheetName(event.target.value)} placeholder="Tên bảng mới" minLength={2} maxLength={100} required /><button className="primary-button" type="submit" disabled={authBusy}>Thêm bảng</button></div><small>Bảng mới hiện dùng quy tắc chấm công hiện tại.</small></form>
+              {authError && <div className="access-error" role="alert">{authError}</div>}
+              <div className="access-actions">{authAccount?.role === "admin" && <button className="secondary-button" type="button" onClick={openAccountManager} disabled={authBusy}><UsersRound size={16} /> Quản lý tài khoản</button>}<button className="text-button" type="button" onClick={signOut}>Đăng xuất</button></div>
+            </>
+          ) : (
+            <>
+              <div className="access-heading"><span className="eyebrow"><UsersRound size={13} /> ADMIN</span><h1>Quản lý tài khoản</h1><p>Chỉ admin mới xem và sửa được danh sách này.</p></div>
+              <div className="account-manager-list">{managedAccounts.map((account) => <article className="account-manager-row" key={account.id}><span className="avatar">{account.displayName.slice(0, 1).toUpperCase()}</span><div><strong>{account.displayName}{account.role === "admin" && <small className="admin-badge">ADMIN</small>}</strong><span>{account.phone} · {account.email}</span></div><button type="button" className="secondary-button" onClick={() => beginAccountEdit(account)}>Sửa</button><button type="button" className="danger-button" onClick={() => deleteManagedAccount(account)} disabled={account.id === authAccount?.id}>Xóa</button></article>)}</div>
+              <form className="account-edit-form" onSubmit={saveManagedAccount}><h2>{accountEditId ? "Sửa tài khoản" : "Thêm tài khoản"}</h2><div className="account-form-grid"><label>Tên hiển thị<input value={accountDisplayName} onChange={(event) => setAccountDisplayName(event.target.value)} minLength={2} maxLength={80} required /></label><label>Số điện thoại<input value={accountPhone} onChange={(event) => setAccountPhone(event.target.value)} autoComplete="tel" required /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} autoComplete="email" required /></label><label>{accountEditId ? "Mật khẩu mới (để trống nếu giữ nguyên)" : "Mật khẩu (ít nhất 8 ký tự)"}<input type="password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} minLength={accountEditId ? 0 : 8} autoComplete="new-password" required={!accountEditId} /></label></div>{authError && <div className="access-error" role="alert">{authError}</div>}<div className="account-form-actions"><button className="primary-button" type="submit" disabled={authBusy}>{authBusy ? "Đang lưu…" : accountEditId ? "Lưu thay đổi" : "Tạo tài khoản"}</button>{accountEditId && <button className="secondary-button" type="button" onClick={() => { setAccountEditId(""); setAccountDisplayName(""); setAccountPhone(""); setAccountEmail(""); setAccountPassword(""); }}>Hủy sửa</button>}</div></form>
+              <div className="access-actions"><button className="secondary-button" type="button" onClick={() => setAuthView("sheets")}><ArrowLeft size={16} /> Quay lại bảng chấm công</button><button className="text-button" type="button" onClick={signOut}>Đăng xuất</button></div>
+            </>
+          )}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -725,6 +990,7 @@ export default function Home() {
 
           <div className="topbar-right">
             <span className="cloud-label"><span className="live-dot" /><Leaf size={13} className="leaf-accent" /> Dữ liệu MongoDB</span>
+            <button className="active-timesheet-chip" type="button" onClick={() => setAuthView("sheets")} title="Chọn bảng chấm công khác"><Table size={15} /><span>{selectedTimesheet?.name}</span><ArrowRight size={14} /></button>
             <button className="profile-chip" type="button" onClick={() => { setActiveTab("entry"); window.setTimeout(() => document.getElementById("employee-name")?.focus(), 0); }}>
               <span className="avatar">{(employeeName.trim()[0] || "T").toUpperCase()}</span>
               <span>{employeeName || "Thanh Phong"}</span>
@@ -860,9 +1126,17 @@ export default function Home() {
                 </div>
                 <span className="drawer-tab-pill">{monthlyWorkDays} ngày</span>
               </button>
+              {authAccount?.role === "admin" && <button type="button" className="drawer-tab-btn" onClick={() => { setIsDrawerOpen(false); void openAccountManager(); }}>
+                <div className="drawer-tab-icon icon-violet"><UsersRound size={18} /></div>
+                <div className="drawer-tab-text"><strong>Quản lý tài khoản</strong><small>Thêm, sửa hoặc xóa tài khoản</small></div>
+                <span className="drawer-tab-pill">ADMIN</span>
+              </button>}
             </div>
 
             <div className="drawer-actions">
+              <button type="button" className="drawer-action-link" onClick={() => { setAuthView("sheets"); setIsDrawerOpen(false); }}>
+                <Table size={16} /> Chọn bảng chấm công khác
+              </button>
               <button
                 type="button"
                 className="drawer-action-link"
@@ -874,6 +1148,9 @@ export default function Home() {
               >
                 <UsersRound size={16} /> Thay đổi nhân viên
               </button>
+              <button type="button" className="drawer-action-link drawer-logout-link" onClick={() => { setIsDrawerOpen(false); void signOut(); }}>
+                <X size={16} /> Đăng xuất {authAccount?.email && <small>{authAccount.email}</small>}
+              </button>
             </div>
           </div>
         </div>
@@ -881,8 +1158,8 @@ export default function Home() {
         <section className="welcome" id="top">
           <div className="welcome-info">
             <div className="eyebrow"><Waves size={13} /> BẢNG CÔNG TÁC & CHỐT CA <TreePine size={13} /></div>
-            <h1>Bảng chấm công <span>{employeeName || "Nhân viên"}</span></h1>
-            <p>Ghi nhận ca làm việc, chốt công cuối tuần và theo dõi thu nhập minh bạch</p>
+            <h1>Bảng chấm công <span>{selectedTimesheet?.name || ""}</span></h1>
+            <p>{employeeName || "Nhân viên"} · Ghi nhận ca làm việc, chốt công cuối tuần và theo dõi thu nhập minh bạch</p>
           </div>
           <div className="welcome-badges">
             <div className="stat-pill"><CalendarDays size={15} /> {selectedDate ? `Ngày ${dateLabel(selectedDate)}` : "Hôm nay"}</div>

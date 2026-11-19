@@ -12,6 +12,8 @@ const ShiftSchema = new Schema(
 
 const AttendanceSchema = new Schema(
   {
+    ownerId: { type: String, required: false },
+    timesheetId: { type: String, required: false },
     employeeName: { type: String, required: true, trim: true },
     date: { type: String, required: true },
     shifts: { type: [ShiftSchema], required: true },
@@ -24,7 +26,7 @@ const AttendanceSchema = new Schema(
   { timestamps: true },
 );
 
-AttendanceSchema.index({ employeeName: 1, date: 1 }, { unique: true });
+AttendanceSchema.index({ ownerId: 1, timesheetId: 1, employeeName: 1, date: 1 }, { unique: true });
 
 export type AttendanceDocument = InferSchemaType<typeof AttendanceSchema>;
 const Attendance = mongoose.models.Attendance || mongoose.model("Attendance", AttendanceSchema);

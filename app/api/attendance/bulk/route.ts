@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { localDateString } from "@/lib/dates";
 import { SHIFT_OPTIONS, isShiftCode } from "@/lib/shifts";
 import Attendance from "@/models/Attendance";
+import { authorizeTimesheet } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -22,8 +23,12 @@ function readRequest(body: Record<string, unknown>) {
 
 export async function POST(request: Request) {
   try {
-    await connectToDatabase();
     const body = await request.json() as Record<string, unknown>;
+    const access = await authorizeTimesheet(body.timesheetId);
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const { employeeName, dates } = readRequest(body);
     const shiftCode = body.shiftCode;
     if (!employeeName || dates.length === 0 || dates.length > 31 || dates.some((date) => !isValidDate(date))) {
@@ -34,15 +39,16 @@ export async function POST(request: Request) {
     }
 
     const shift = SHIFT_OPTIONS.find((option) => option.code === shiftCode)!;
-    const existingRecords = await Attendance.find({ employeeName, date: { $in: dates } }).lean();
+    const existingRecords = await Attendance.find({ ownerId, timesheetId, employeeName, date: { $in: dates } }).lean();
     const existingByDate = new Map(existingRecords.map((record) => [record.date, record] as const));
     let skipped = 0;
     let invalidDate = "";
-    const operations = dates.flatMap((date) => {
+    const operations: Parameters<typeof Attendance.bulkWrite>[0] = [];
+    for (const date of dates) {
       const existing = existingByDate.get(date);
-      if (existing?.shifts.some((item) => item.code === shift.code)) {
+      if (existing?.shifts.some((item: { code: string }) => item.code === shift.code)) {
         skipped += 1;
-        return [];
+        continue;
       }
 
       if (existing) {
@@ -50,21 +56,29 @@ export async function POST(request: Request) {
         const totalHours = existing.totalHours + shift.hours;
         if (totalHours > 14) {
           invalidDate = date;
-          return [];
+          continue;
         }
         const shifts = [
-          ...existing.shifts.filter((item) => item.code !== "O"),
+          ...existing.shifts.filter((item: { code: string }) => item.code !== "O"),
           { code: shift.code, start: shift.start, end: shift.end, hours: shift.hours },
         ];
-        return [{ updateOne: { filter: { employeeName, date }, update: { $set: { shifts, extraHours, totalHours } } } }];
+        operations.push({
+          updateOne: {
+            filter: { ownerId, timesheetId, employeeName, date },
+            update: { $set: { shifts, extraHours, totalHours } },
+          },
+        });
+        continue;
       }
 
-      return [{
+      operations.push({
         updateOne: {
-          filter: { employeeName, date },
+          filter: { ownerId, timesheetId, employeeName, date },
           update: {
             $setOnInsert: {
               employeeName,
+              ownerId,
+              timesheetId,
               date,
               shifts: [{ code: shift.code, start: shift.start, end: shift.end, hours: shift.hours }],
               coworkers: [],
@@ -75,8 +89,8 @@ export async function POST(request: Request) {
           },
           upsert: true,
         },
-      }];
-    });
+      });
+    }
 
     if (invalidDate) {
       return NextResponse.json({ error: `Thêm ca ${shift.code} sẽ làm ngày ${invalidDate} vượt quá 14 giờ` }, { status: 400 });
@@ -91,14 +105,18 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await connectToDatabase();
     const body = await request.json() as Record<string, unknown>;
+    const access = await authorizeTimesheet(body.timesheetId);
+    if (access.status !== 200) return NextResponse.json({ error: access.status === 401 ? "Vui lòng đăng nhập" : "Bảng chấm công không tồn tại" }, { status: access.status });
+    const ownerId = String(access.account!._id);
+    const timesheetId = String(access.timesheet!._id);
+    await connectToDatabase();
     const { employeeName, dates } = readRequest(body);
     if (!employeeName || dates.length === 0 || dates.length > 31 || dates.some((date) => !isValidDate(date))) {
       return NextResponse.json({ error: "Tên nhân viên hoặc danh sách ngày chưa hợp lệ" }, { status: 400 });
     }
 
-    const result = await Attendance.deleteMany({ employeeName, date: { $in: dates } });
+    const result = await Attendance.deleteMany({ ownerId, timesheetId, employeeName, date: { $in: dates } });
     return NextResponse.json({ deletedCount: result.deletedCount });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa công nhiều ngày";
