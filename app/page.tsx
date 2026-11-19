@@ -161,6 +161,15 @@ export default function Home() {
     setSelectedMonth(today.slice(0, 7));
   }, []);
 
+  useEffect(() => {
+    if (!error && !message) return;
+    const timeout = window.setTimeout(() => {
+      setError("");
+      setMessage("");
+    }, 3000);
+    return () => window.clearTimeout(timeout);
+  }, [error, message]);
+
   const weekStart = useMemo(() => (selectedDate ? mondayOf(selectedDate) : ""), [selectedDate]);
   const weekEnd = useMemo(() => (weekStart ? addDays(weekStart, 6) : ""), [weekStart]);
   const selectedShifts = selectedCodes.map((code) => {
@@ -187,7 +196,7 @@ export default function Home() {
   const weeklyHours = attendance.reduce((total, record) => total + record.totalHours, 0);
   const weeklyMissingRateDays = attendance.filter((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null).length;
   const estimatedPay = attendance.reduce((total, record) => {
-    if (record.actualPay != null) return total + record.actualPay;
+    if (record.actualPay != null) return total + record.totalHours * record.actualPay;
     return total + (hourlyRate === null ? 0 : record.totalHours * hourlyRate);
   }, 0);
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
@@ -303,7 +312,7 @@ export default function Home() {
       return;
     }
     if (!validActualPay) {
-      setError("Tiền thực của ngày phải là số không âm");
+      setError("Mức lương riêng của ngày phải là số không âm");
       return;
     }
     if (selectedTotalHours > 14) {
@@ -709,10 +718,10 @@ export default function Home() {
         </section>
 
         {(error || message) && (
-          <div className={`notice ${error ? "notice-error" : "notice-success"}`} role="status">
+          <div className={`notice notice-toast ${error ? "notice-error" : "notice-success"}`} role={error ? "alert" : "status"} aria-live={error ? "assertive" : "polite"}>
             {error ? <span className="notice-icon">!</span> : <Check size={16} />}
             <span>{withoutEndingPunctuation(error || message)}</span>
-            <button type="button" aria-label="Đóng thông báo" onClick={() => { setError(""); setMessage(""); }}>×</button>
+            <button type="button" aria-label="Đóng thông báo" onClick={() => { setError(""); setMessage(""); }}><X size={16} /></button>
           </div>
         )}
 
@@ -844,10 +853,10 @@ export default function Home() {
               </div>
 
               <div className="field-block actual-pay-block">
-                <label className="field-label" htmlFor="actual-pay">Tiền thực của ngày <span>(nếu có)</span></label>
-                <div className="input-wrap full-input"><Wallet size={17} /><input id="actual-pay" type="number" min="0" step="1" value={actualPayDraft} onChange={(event) => setActualPayDraft(event.target.value)} placeholder="Để trống để tính theo giờ × hệ số tuần" /><span className="input-suffix">₫</span></div>
-                <span className="field-hint">Nhập số tiền thực nhận cho ngày đặc biệt; để trống sẽ dùng tổng giờ × hệ số lương tuần.</span>
-                {!validActualPay && <span className="inline-warning">Tiền thực của ngày phải là số không âm.</span>}
+                <label className="field-label" htmlFor="actual-pay">Mức lương riêng của ngày <span>(mỗi giờ, nếu có)</span></label>
+                <div className="input-wrap full-input"><Wallet size={17} /><input id="actual-pay" type="number" min="0" step="any" value={actualPayDraft} onChange={(event) => setActualPayDraft(event.target.value)} placeholder="Để trống để dùng hệ số tuần" /><span className="input-suffix">₫ / giờ</span></div>
+                <span className="field-hint">Số này sẽ nhân với tổng giờ của ngày. Để trống sẽ dùng hệ số lương của tuần.</span>
+                {!validActualPay && <span className="inline-warning">Mức lương riêng của ngày phải là số không âm.</span>}
               </div>
 
               <div className="field-block coworkers-block">
@@ -932,7 +941,7 @@ export default function Home() {
                 <span className="pay-week">KỲ LƯƠNG · {weekStart && formatWeekRange(weekStart, weekEnd)}</span>
               </div>
               <h2>{currency.format(estimatedPay)}</h2>
-              <p>{weeklyMissingRateDays > 0 ? `${weeklyHours} giờ · đã bỏ qua ${weeklyMissingRateDays} ngày thiếu tiền thực và hệ số` : `${weeklyHours} giờ · gồm hệ số tuần và tiền thực nhập theo ngày`}</p>
+              <p>{weeklyMissingRateDays > 0 ? `${weeklyHours} giờ · đã bỏ qua ${weeklyMissingRateDays} ngày thiếu mức riêng và hệ số tuần` : `${weeklyHours} giờ · gồm hệ số tuần và mức riêng từng ngày`}</p>
               <div className="pay-divider" />
               <label className="rate-label" htmlFor="rate">Hệ số nhân / lương mỗi giờ</label>
               <div className="rate-entry">
@@ -951,9 +960,9 @@ export default function Home() {
                 <span className="pay-week">TỔNG CÔNG THÁNG · {formatMonthLabel(selectedMonth)}</span>
               </div>
               <h2>{monthlyLoading ? "Đang tính…" : currency.format(monthlyPay)}</h2>
-              <p>{monthlyLoading ? "Đang tải tổng giờ…" : monthlyMissingRateDays > 0 ? `${monthlyHours} giờ · đã bỏ qua ${monthlyMissingRateDays} ngày thiếu tiền thực và hệ số` : `${monthlyHours} giờ · cộng ${monthlyWeeks.length} tuần`}</p>
+              <p>{monthlyLoading ? "Đang tải tổng giờ…" : monthlyMissingRateDays > 0 ? `${monthlyHours} giờ · đã bỏ qua ${monthlyMissingRateDays} ngày thiếu mức riêng và hệ số tuần` : `${monthlyHours} giờ · cộng ${monthlyWeeks.length} tuần`}</p>
               <div className="pay-divider" />
-              <div className="pay-footnote"><span className="lock-dot" /> Tổng công lấy từ ngày 1 đến ngày cuối tháng. Ngày chưa có tiền thực và tuần chưa có hệ số sẽ được bỏ qua; các khoản đã tính được vẫn được cộng.</div>
+              <div className="pay-footnote"><span className="lock-dot" /> Tổng công lấy từ ngày 1 đến ngày cuối tháng. Mức lương riêng trong ngày được nhân với số giờ; nếu chưa nhập thì dùng hệ số tuần. Ngày thiếu cả hai mức sẽ được bỏ qua.</div>
             </section>
             )}
 
@@ -1016,12 +1025,12 @@ export default function Home() {
                       <div className="payroll-day" key={record._id}>
                         <div><strong>{dateLabel(record.date)}</strong><span>{shiftTimeSummary(record)}</span></div>
                         <span className="payroll-day-hours">{record.totalHours} giờ</span>
-                        <span className="payroll-day-amount">{record.actualPay != null ? currency.format(record.actualPay) : record.totalHours === 0 ? currency.format(0) : hourlyRate === null ? "Thiếu hệ số" : currency.format(record.totalHours * hourlyRate)}</span>
+                        <span className="payroll-day-amount">{record.actualPay != null ? currency.format(record.totalHours * record.actualPay) : record.totalHours === 0 ? currency.format(0) : hourlyRate === null ? "Thiếu hệ số" : currency.format(record.totalHours * hourlyRate)}</span>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="payroll-total"><span>Tổng tuần · theo hệ số và tiền thực từng ngày</span><strong>{currency.format(estimatedPay)}</strong></div>
+                <div className="payroll-total"><span>Tổng tuần · theo hệ số và mức lương riêng từng ngày</span><strong>{currency.format(estimatedPay)}</strong></div>
               </section>
             )}
 
@@ -1034,7 +1043,7 @@ export default function Home() {
                   <div className="monthly-week-list">
                     {monthlyWeeks.map((week) => (
                       <div className="monthly-week" key={week.weekStart}>
-                        <div><strong>{formatWeekRange(week.periodStart, week.periodEnd)}</strong><span>{week.hours} giờ · {week.missingRateDays > 0 ? `bỏ qua ${week.missingRateDays} ngày thiếu tiền thực và hệ số` : week.hourlyRate === null ? "có tiền thực nhập theo ngày" : `${currency.format(week.hourlyRate)} / giờ`}</span></div>
+                        <div><strong>{formatWeekRange(week.periodStart, week.periodEnd)}</strong><span>{week.hours} giờ · {week.missingRateDays > 0 ? `bỏ qua ${week.missingRateDays} ngày thiếu mức riêng và hệ số tuần` : week.hourlyRate === null ? "đã nhập mức lương riêng theo ngày" : `${currency.format(week.hourlyRate)} / giờ`}</span></div>
                         <strong>{currency.format(week.pay)}</strong>
                       </div>
                     ))}

@@ -18,6 +18,7 @@ const AttendanceSchema = new Schema(
     coworkers: { type: [String], default: [] },
     extraHours: { type: Number, required: true, min: 0, default: 0 },
     totalHours: { type: Number, required: true },
+    // Keeps the existing MongoDB field name; the value is a per-hour override for this day.
     actualPay: { type: Number, min: 0, default: null },
   },
   { timestamps: true },

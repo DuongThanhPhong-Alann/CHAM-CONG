@@ -59,7 +59,7 @@ export async function GET(request: Request) {
       const hourlyRate = rateByWeek.get(weekStart) ?? null;
       const missingRateDays = weekRecords.filter((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null).length;
       const pay = weekRecords.reduce((total, record) => {
-        if (record.actualPay != null) return total + record.actualPay;
+        if (record.actualPay != null) return total + record.totalHours * record.actualPay;
         return total + (hourlyRate === null ? 0 : record.totalHours * hourlyRate);
       }, 0);
       const weekEnd = addDays(weekStart, 6);

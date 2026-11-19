@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Giờ làm thêm phải là số không âm" }, { status: 400 });
     }
     if (actualPay !== null && (typeof actualPay !== "number" || !Number.isFinite(actualPay) || actualPay < 0)) {
-      return NextResponse.json({ error: "Tiền thực của ngày phải là số không âm" }, { status: 400 });
+      return NextResponse.json({ error: "Mức lương riêng của ngày phải là số không âm" }, { status: 400 });
     }
     const codes = requestedShifts.map((shift) => shift?.code);
     if (codes.some((code: unknown) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
