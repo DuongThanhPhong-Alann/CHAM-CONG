@@ -45,7 +45,8 @@ type WeeklySummary = {
   periodEnd: string;
   hours: number;
   hourlyRate: number | null;
-  pay: number | null;
+  missingRateDays: number;
+  pay: number;
 };
 
 type MonthlyAttendanceEntry = AttendanceEntry;
@@ -185,12 +186,13 @@ export default function Home() {
     .sort((a, b) => b.end - a.end)[0];
   const weeklyHours = attendance.reduce((total, record) => total + record.totalHours, 0);
   const weeklyMissingRateDays = attendance.filter((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null).length;
-  const estimatedPay = weeklyMissingRateDays > 0
-    ? null
-    : attendance.reduce((total, record) => total + (record.actualPay ?? record.totalHours * (hourlyRate ?? 0)), 0);
+  const estimatedPay = attendance.reduce((total, record) => {
+    if (record.actualPay != null) return total + record.actualPay;
+    return total + (hourlyRate === null ? 0 : record.totalHours * hourlyRate);
+  }, 0);
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
-  const monthlyMissingRates = monthlyWeeks.filter((week) => week.pay === null).length;
-  const monthlyPay = monthlyMissingRates > 0 ? null : monthlyWeeks.reduce((total, week) => total + (week.pay || 0), 0);
+  const monthlyMissingRateDays = monthlyWeeks.reduce((total, week) => total + week.missingRateDays, 0);
+  const monthlyPay = monthlyWeeks.reduce((total, week) => total + week.pay, 0);
   const exportText = useMemo(() => createExportText(employeeName, attendance, selectedDate), [employeeName, attendance, selectedDate]);
   const monthlyExportText = useMemo(
     () => createExportText(employeeName, monthlyAttendance, "", `Chốt công ${formatMonthLabel(selectedMonth)}`),
@@ -661,7 +663,7 @@ export default function Home() {
                   <strong>Tính lương tuần</strong>
                   <small>Cài đặt hệ số lương/giờ và xem lương tuần</small>
                 </div>
-                {estimatedPay !== null && <span className="drawer-tab-pill">{currency.format(estimatedPay)}</span>}
+                {attendance.length > 0 && <span className="drawer-tab-pill">{currency.format(estimatedPay)}</span>}
               </button>
 
               <button
@@ -922,8 +924,8 @@ export default function Home() {
                 <span className="pay-icon"><Wallet size={19} /></span>
                 <span className="pay-week">KỲ LƯƠNG · {weekStart && formatWeekRange(weekStart, weekEnd)}</span>
               </div>
-              <h2>{estimatedPay === null ? "Chưa tính lương" : currency.format(estimatedPay)}</h2>
-              <p>{estimatedPay === null ? `${weeklyHours} giờ · còn thiếu hệ số cho ${weeklyMissingRateDays} ngày` : `${weeklyHours} giờ · gồm hệ số tuần và tiền thực nhập theo ngày`}</p>
+              <h2>{currency.format(estimatedPay)}</h2>
+              <p>{weeklyMissingRateDays > 0 ? `${weeklyHours} giờ · đã bỏ qua ${weeklyMissingRateDays} ngày thiếu tiền thực và hệ số` : `${weeklyHours} giờ · gồm hệ số tuần và tiền thực nhập theo ngày`}</p>
               <div className="pay-divider" />
               <label className="rate-label" htmlFor="rate">Hệ số nhân / lương mỗi giờ</label>
               <div className="rate-entry">
@@ -941,10 +943,10 @@ export default function Home() {
                 <span className="pay-icon"><CalendarDays size={19} /></span>
                 <span className="pay-week">TỔNG CÔNG THÁNG · {formatMonthLabel(selectedMonth)}</span>
               </div>
-              <h2>{monthlyLoading ? "Đang tính…" : monthlyPay === null ? "Chưa đủ hệ số" : currency.format(monthlyPay)}</h2>
-              <p>{monthlyLoading ? "Đang tải tổng giờ…" : monthlyMissingRates > 0 ? `${monthlyHours} giờ · còn thiếu hệ số ${monthlyMissingRates} tuần` : `${monthlyHours} giờ · cộng ${monthlyWeeks.length} tuần`}</p>
+              <h2>{monthlyLoading ? "Đang tính…" : currency.format(monthlyPay)}</h2>
+              <p>{monthlyLoading ? "Đang tải tổng giờ…" : monthlyMissingRateDays > 0 ? `${monthlyHours} giờ · đã bỏ qua ${monthlyMissingRateDays} ngày thiếu tiền thực và hệ số` : `${monthlyHours} giờ · cộng ${monthlyWeeks.length} tuần`}</p>
               <div className="pay-divider" />
-              <div className="pay-footnote"><span className="lock-dot" /> Tổng công lấy từ ngày 1 đến ngày cuối tháng. Ngày nhập tiền thực dùng mức đó; các ngày còn lại tính theo hệ số của tuần.</div>
+              <div className="pay-footnote"><span className="lock-dot" /> Tổng công lấy từ ngày 1 đến ngày cuối tháng. Ngày chưa có tiền thực và tuần chưa có hệ số sẽ được bỏ qua; các khoản đã tính được vẫn được cộng.</div>
             </section>
             )}
 
@@ -1012,7 +1014,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-                <div className="payroll-total"><span>Tổng tuần · theo hệ số và tiền thực từng ngày</span><strong>{estimatedPay === null ? "—" : currency.format(estimatedPay)}</strong></div>
+                <div className="payroll-total"><span>Tổng tuần · theo hệ số và tiền thực từng ngày</span><strong>{currency.format(estimatedPay)}</strong></div>
               </section>
             )}
 
@@ -1025,13 +1027,13 @@ export default function Home() {
                   <div className="monthly-week-list">
                     {monthlyWeeks.map((week) => (
                       <div className="monthly-week" key={week.weekStart}>
-                        <div><strong>{formatWeekRange(week.periodStart, week.periodEnd)}</strong><span>{week.hours} giờ · {week.pay === null ? "thiếu hệ số cho ngày chưa nhập tiền thực" : week.hourlyRate === null ? "có tiền thực nhập theo ngày" : `${currency.format(week.hourlyRate)} / giờ`}</span></div>
-                        <strong>{week.pay === null ? "Thiếu hệ số" : currency.format(week.pay)}</strong>
+                        <div><strong>{formatWeekRange(week.periodStart, week.periodEnd)}</strong><span>{week.hours} giờ · {week.missingRateDays > 0 ? `bỏ qua ${week.missingRateDays} ngày thiếu tiền thực và hệ số` : week.hourlyRate === null ? "có tiền thực nhập theo ngày" : `${currency.format(week.hourlyRate)} / giờ`}</span></div>
+                        <strong>{currency.format(week.pay)}</strong>
                       </div>
                     ))}
                   </div>
                 )}
-                {!monthlyLoading && <div className="payroll-total"><span>Cộng {monthlyWeeks.length} tuần trong tháng · {monthlyHours} giờ</span><strong>{monthlyPay === null ? "—" : currency.format(monthlyPay)}</strong></div>}
+                {!monthlyLoading && <div className="payroll-total"><span>Cộng {monthlyWeeks.length} tuần trong tháng · {monthlyHours} giờ</span><strong>{currency.format(monthlyPay)}</strong></div>}
               </section>
             )}
 

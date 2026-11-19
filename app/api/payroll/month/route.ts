@@ -50,16 +50,18 @@ export async function GET(request: Request) {
       periodEnd: string;
       hours: number;
       hourlyRate: number | null;
-      pay: number | null;
+      missingRateDays: number;
+      pay: number;
     }[] = [];
     for (let weekStart = firstWeek; weekStart <= lastWeek; weekStart = addDays(weekStart, 7)) {
       const weekRecords = attendanceByWeek.get(weekStart) || [];
       const hours = weekRecords.reduce((total, record) => total + record.totalHours, 0);
       const hourlyRate = rateByWeek.get(weekStart) ?? null;
-      const missingRate = weekRecords.some((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null);
-      const pay = missingRate
-        ? null
-        : weekRecords.reduce((total, record) => total + (record.actualPay ?? record.totalHours * (hourlyRate ?? 0)), 0);
+      const missingRateDays = weekRecords.filter((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null).length;
+      const pay = weekRecords.reduce((total, record) => {
+        if (record.actualPay != null) return total + record.actualPay;
+        return total + (hourlyRate === null ? 0 : record.totalHours * hourlyRate);
+      }, 0);
       const weekEnd = addDays(weekStart, 6);
       weeks.push({
         weekStart,
@@ -68,7 +70,8 @@ export async function GET(request: Request) {
         periodEnd: weekEnd > lastDate ? lastDate : weekEnd,
         hours,
         hourlyRate,
-        pay: hours === 0 ? 0 : pay,
+        missingRateDays,
+        pay,
       });
     }
 

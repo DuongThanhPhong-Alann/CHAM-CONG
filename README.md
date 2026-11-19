@@ -26,7 +26,7 @@
 - **Ca trong tuần · text:** xem lịch từ thứ Hai đến Chủ nhật, danh sách ca đã ghi và sao chép text chốt công cho đúng tuần đang chọn.
 - **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca, chỉnh giờ vào/ra thực tế theo bước 30 phút nếu cần, nhập giờ làm thêm theo bước 0,5 giờ, tiền thực của ngày đặc biệt và tên người làm chung nếu có. Tiền thực được ưu tiên cho ngày đó; để trống thì lương tính theo tổng giờ nhân hệ số tuần.
 - **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca hoặc cập nhật tiền thực một ngày, tổng lương tuần cập nhật theo dữ liệu đã lưu.
-- **Tính công theo tháng:** tính các ngày từ ngày 1 đến ngày cuối tháng, kể cả khi ngày 1 nằm giữa tuần; tuần đầu và tuần cuối chỉ tính những ngày thuộc tháng. Ngày có tiền thực dùng số tiền đã nhập, các ngày khác dùng hệ số của tuần. Nếu còn ngày chưa nhập tiền thực và tuần đó chưa có hệ số, tổng lương sẽ chờ đủ dữ liệu. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
+- **Tính công theo tháng:** tính các ngày từ ngày 1 đến ngày cuối tháng, kể cả khi ngày 1 nằm giữa tuần; tuần đầu và tuần cuối chỉ tính những ngày thuộc tháng. Ngày có tiền thực dùng số tiền đã nhập, các ngày khác dùng hệ số của tuần. Ngày chưa có tiền thực và tuần chưa có hệ số sẽ bị bỏ qua, còn các khoản tính được vẫn được cộng vào tổng. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
 
 Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả tuần chưa nhập hệ số. Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
 
