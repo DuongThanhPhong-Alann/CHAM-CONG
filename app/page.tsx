@@ -152,6 +152,7 @@ export default function Home() {
   const [savingRate, setSavingRate] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [successAction, setSuccessAction] = useState<"add" | "delete" | "edit">("add");
   const [copied, setCopied] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -319,6 +320,7 @@ export default function Home() {
       setError("Tổng giờ làm trong một ngày không được vượt quá 14 tiếng");
       return;
     }
+    const isUpdating = attendance.some((record) => record.date === selectedDate);
     setSaving(true);
     setError("");
     setMessage("");
@@ -341,6 +343,7 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || "Không lưu được ngày công");
       await loadWeek(weekStart, employeeName);
       if (selectedDate.slice(0, 7) === selectedMonth) await loadMonth(selectedMonth, employeeName);
+      setSuccessAction(isUpdating ? "edit" : "add");
       setMessage("Đã lưu ngày công vào MongoDB");
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Không lưu được ngày công");
@@ -362,6 +365,7 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || "Không xóa được ngày công");
       await loadWeek(weekStart, employeeName);
       if (date.slice(0, 7) === selectedMonth) await loadMonth(selectedMonth, employeeName);
+      setSuccessAction("delete");
       setMessage("Đã xóa ngày công");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Không xóa được ngày công");
@@ -386,6 +390,7 @@ export default function Home() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không lưu được hệ số lương");
       setHourlyRate(data.hourlyRate);
+      setSuccessAction("edit");
       setMessage("Đã lưu hệ số lương cho tuần này");
     } catch (rateError) {
       setError(rateError instanceof Error ? rateError.message : "Không lưu được hệ số lương");
@@ -718,10 +723,14 @@ export default function Home() {
         </section>
 
         {(error || message) && (
-          <div className={`notice notice-toast ${error ? "notice-error" : "notice-success"}`} role={error ? "alert" : "status"} aria-live={error ? "assertive" : "polite"}>
-            {error ? <span className="notice-icon">!</span> : <Check size={16} />}
-            <span>{withoutEndingPunctuation(error || message)}</span>
-            <button type="button" aria-label="Đóng thông báo" onClick={() => { setError(""); setMessage(""); }}><X size={16} /></button>
+          <div className="notice-backdrop" onClick={() => { setError(""); setMessage(""); }}>
+            <div className={`notice notice-modal ${error ? "notice-error notice-action-error" : `notice-success notice-action-${successAction}`}`} role={error ? "alertdialog" : "dialog"} aria-modal="true" aria-live={error ? "assertive" : "polite"} onClick={(event) => event.stopPropagation()}>
+              <button className="notice-close" type="button" aria-label="Đóng thông báo" onClick={() => { setError(""); setMessage(""); }}><X size={17} /></button>
+              <div className={`notice-modal-mark ${error ? "notice-mark-error" : `notice-mark-${successAction}`}`}>{error ? "!" : <Check size={25} strokeWidth={2.5} />}</div>
+              <strong className="notice-modal-title">{error ? "Chưa hoàn tất" : successAction === "add" ? "Đã thêm" : successAction === "delete" ? "Đã xóa" : "Đã cập nhật"}</strong>
+              <span className="notice-modal-message">{withoutEndingPunctuation(error || message)}</span>
+              <button className="notice-modal-action" type="button" onClick={() => { setError(""); setMessage(""); }}>Đóng</button>
+            </div>
           </div>
         )}
 
