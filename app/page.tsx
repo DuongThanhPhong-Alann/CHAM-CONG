@@ -993,6 +993,8 @@ export default function Home() {
                   <div className="sheet-summary-card sheet-summary-pay"><span>Tổng tiền công</span><strong>{currency.format(monthlyPay)}</strong></div>
                 </div>
 
+                <p className="sheet-gesture-hint">Trên điện thoại, chụm hoặc mở hai ngón tay để phóng to/thu nhỏ bảng; xoay ngang máy để xem rộng hơn.</p>
+
                 {monthlyMissingRateDays > 0 && !monthlyLoading && (
                   <p className="sheet-note">Đang bỏ qua {monthlyMissingRateDays} ngày chưa có mức lương riêng hoặc hệ số tuần.</p>
                 )}

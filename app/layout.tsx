@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 
@@ -12,6 +12,13 @@ const beVietnamPro = Be_Vietnam_Pro({
 export const metadata: Metadata = {
   title: "Chốt Công | Quản lý ca làm",
   description: "Ghi nhận ca làm, chốt công và tính lương theo tuần hoặc tháng",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
