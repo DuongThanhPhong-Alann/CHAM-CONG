@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
 import {
   ArrowDownToLine,
@@ -58,6 +58,7 @@ const SHORT_WEEKDAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const TAB_LABELS = {
   week: "Ca trong tuần · text",
   entry: "Ghi nhận ca làm",
+  bulk: "Ghi/xóa nhiều ngày",
   payroll: "Tính công theo tuần",
   monthly: "Tính công theo tháng",
   sheet: "Bảng công tháng",
@@ -134,13 +135,19 @@ function createExportText(employeeName: string, records: AttendanceEntry[], thro
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"week" | "entry" | "payroll" | "monthly" | "sheet">("week");
+  const [activeTab, setActiveTab] = useState<"week" | "entry" | "bulk" | "payroll" | "monthly" | "sheet">("week");
   const [employeeName, setEmployeeName] = useState("Thanh Phong");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
   const [monthlyAttendance, setMonthlyAttendance] = useState<MonthlyAttendanceEntry[]>([]);
   const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
+  const [sheetZoom, setSheetZoom] = useState(1);
+  const sheetPinchStart = useRef<{ distance: number; zoom: number } | null>(null);
+  const [bulkMode, setBulkMode] = useState<"add" | "delete">("add");
+  const [bulkSelectedDates, setBulkSelectedDates] = useState<string[]>([]);
+  const [bulkShiftCode, setBulkShiftCode] = useState<ShiftCode>("A");
+  const [savingBulk, setSavingBulk] = useState(false);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
   const [shiftTimeDrafts, setShiftTimeDrafts] = useState<Record<string, ShiftTimeDraft>>({});
   const [extraHoursDraft, setExtraHoursDraft] = useState("0");
@@ -229,6 +236,44 @@ export default function Home() {
     });
   }, [selectedMonth, monthlyAttendance, monthlyWeeks]);
   const monthlyWorkDays = monthlyAttendance.filter((record) => record.totalHours > 0).length;
+  const bulkCalendarCells = useMemo(() => {
+    if (!selectedMonth) return [];
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const firstOffset = (new Date(year, month - 1, 1, 12).getDay() + 6) % 7;
+    const dayCount = new Date(year, month, 0, 12).getDate();
+    const cells: (string | null)[] = Array.from({ length: firstOffset }, () => null);
+    for (let day = 1; day <= dayCount; day += 1) {
+      cells.push(`${selectedMonth}-${String(day).padStart(2, "0")}`);
+    }
+    return cells;
+  }, [selectedMonth]);
+  function startSheetPinch(event: ReactTouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 2) return;
+    const first = event.touches[0];
+    const second = event.touches[1];
+    sheetPinchStart.current = {
+      distance: Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY),
+      zoom: sheetZoom,
+    };
+  }
+
+  function moveSheetPinch(event: ReactTouchEvent<HTMLDivElement>) {
+    const start = sheetPinchStart.current;
+    if (!start || event.touches.length !== 2 || start.distance === 0) return;
+    const first = event.touches[0];
+    const second = event.touches[1];
+    const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+    setSheetZoom(Math.min(1.8, Math.max(0.7, start.zoom * distance / start.distance)));
+  }
+
+  function endSheetPinch(event: ReactTouchEvent<HTMLDivElement>) {
+    if (event.touches.length < 2) sheetPinchStart.current = null;
+  }
+
+  function adjustSheetZoom(amount: number) {
+    setSheetZoom((current) => Math.min(1.8, Math.max(0.7, Math.round((current + amount) * 100) / 100)));
+  }
+
   const exportText = useMemo(() => createExportText(employeeName, attendance, selectedDate), [employeeName, attendance, selectedDate]);
   const monthlyExportText = useMemo(
     () => createExportText(employeeName, monthlyAttendance, "", `Chốt công ${formatMonthLabel(selectedMonth)}`),
@@ -286,10 +331,14 @@ export default function Home() {
   }, [weekStart, employeeName]);
 
   useEffect(() => {
-    if ((activeTab === "monthly" || activeTab === "sheet") && selectedMonth) void loadMonth(selectedMonth, employeeName);
+    if ((activeTab === "monthly" || activeTab === "sheet" || activeTab === "bulk") && selectedMonth) void loadMonth(selectedMonth, employeeName);
     // Load the monthly summary when its tab, month, or employee changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedMonth, employeeName]);
+
+  useEffect(() => {
+    setBulkSelectedDates([]);
+  }, [selectedMonth, bulkMode, employeeName]);
 
   useEffect(() => {
     const existing = attendance.find((record) => record.date === selectedDate);
@@ -395,6 +444,74 @@ export default function Home() {
       setMessage("Đã xóa ngày công");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Không xóa được ngày công");
+    }
+  }
+
+  function toggleBulkDate(date: string) {
+    setBulkSelectedDates((current) => current.includes(date)
+      ? current.filter((item) => item !== date)
+      : [...current, date].sort());
+  }
+
+  async function saveBulkAttendance() {
+    if (bulkSelectedDates.length === 0) {
+      setError("Chọn ít nhất một ngày chưa có ca đã chọn");
+      return;
+    }
+    setSavingBulk(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/attendance/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeName: employeeName.trim() || "Thanh Phong",
+          dates: bulkSelectedDates,
+          shiftCode: bulkShiftCode,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không ghi được công cho các ngày đã chọn");
+      await Promise.all([loadWeek(weekStart, employeeName), loadMonth(selectedMonth, employeeName)]);
+      setBulkSelectedDates([]);
+      setSuccessAction("add");
+      setMessage(data.skipped > 0
+        ? `Đã thêm ca cho ${data.added} ngày; bỏ qua ${data.skipped} ngày đã có ca này`
+        : `Đã ghi ca ${bulkShiftCode} cho ${data.added} ngày`);
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : "Không ghi được công cho các ngày đã chọn");
+    } finally {
+      setSavingBulk(false);
+    }
+  }
+
+  async function deleteBulkAttendance() {
+    if (bulkSelectedDates.length === 0) {
+      setError("Chọn ít nhất một ngày đã có công để xóa");
+      return;
+    }
+    const confirmed = window.confirm(`Xóa công của ${bulkSelectedDates.length} ngày đã chọn?`);
+    if (!confirmed) return;
+    setSavingBulk(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/attendance/bulk", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeName: employeeName.trim() || "Thanh Phong", dates: bulkSelectedDates }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không xóa được công các ngày đã chọn");
+      await Promise.all([loadWeek(weekStart, employeeName), loadMonth(selectedMonth, employeeName)]);
+      setBulkSelectedDates([]);
+      setSuccessAction("delete");
+      setMessage(`Đã xóa công của ${data.deletedCount} ngày`);
+    } catch (bulkError) {
+      setError(bulkError instanceof Error ? bulkError.message : "Không xóa được công các ngày đã chọn");
+    } finally {
+      setSavingBulk(false);
     }
   }
 
@@ -696,6 +813,18 @@ export default function Home() {
 
               <button
                 type="button"
+                className={`drawer-tab-btn ${activeTab === "bulk" ? "active" : ""}`}
+                onClick={() => { setActiveTab("bulk"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-blue"><CalendarDays size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Ghi/xóa nhiều ngày</strong>
+                  <small>Áp dụng cùng một ca hoặc xóa nhiều ngày</small>
+                </div>
+              </button>
+
+              <button
+                type="button"
                 className={`drawer-tab-btn ${activeTab === "payroll" ? "active" : ""}`}
                 onClick={() => { setActiveTab("payroll"); setIsDrawerOpen(false); }}
               >
@@ -773,7 +902,7 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === "monthly" || activeTab === "sheet" ? (
+        {activeTab === "monthly" || activeTab === "sheet" || activeTab === "bulk" ? (
           <div className="week-selector">
             <div><span className="week-selector-label">THÁNG ĐANG XEM</span><strong>{formatMonthLabel(selectedMonth)}</strong></div>
             <div className="week-selector-actions">
@@ -922,6 +1051,81 @@ export default function Home() {
             </section>
             )}
 
+            {activeTab === "bulk" && (
+              <section className="panel bulk-panel">
+                <div className="section-heading">
+                  <div className="heading-icon heading-icon-blue"><CalendarDays size={18} /></div>
+                  <div><h2>Ghi hoặc xóa công nhiều ngày</h2><p>Chọn nhiều ngày trong tháng để áp dụng cùng một ca hoặc xóa công</p></div>
+                </div>
+
+                <div className="bulk-mode-switch" role="group" aria-label="Chọn thao tác nhiều ngày">
+                  <button type="button" className={bulkMode === "add" ? "active" : ""} aria-pressed={bulkMode === "add"} onClick={() => setBulkMode("add")}>
+                    <Plus size={15} /> Ghi cùng một ca
+                  </button>
+                  <button type="button" className={bulkMode === "delete" ? "active bulk-delete-active" : ""} aria-pressed={bulkMode === "delete"} onClick={() => setBulkMode("delete")}>
+                    <Trash2 size={15} /> Xóa công đã ghi
+                  </button>
+                </div>
+
+                {bulkMode === "add" && (
+                  <div className="bulk-shift-field">
+                    <label className="field-label" htmlFor="bulk-shift">Ca áp dụng cho tất cả ngày đã chọn</label>
+                    <select id="bulk-shift" value={bulkShiftCode} onChange={(event) => { setBulkShiftCode(event.target.value as ShiftCode); setBulkSelectedDates([]); }}>
+                      {SHIFT_OPTIONS.filter((shift) => shift.code !== "O").map((shift) => (
+                        <option value={shift.code} key={shift.code}>{shift.code} · {shift.start}:00–{shift.end}:00 · {shift.hours} giờ</option>
+                      ))}
+                    </select>
+                    <span className="field-hint">Ca mới được thêm cùng các ca đã có; ngày đã có đúng ca này sẽ được bỏ qua. Hệ số lương tuần vẫn áp dụng riêng theo từng ngày.</span>
+                  </div>
+                )}
+
+                <div className="bulk-calendar-heading">
+                  <strong>{formatMonthLabel(selectedMonth)}</strong>
+                  <span>{bulkMode === "add" ? "Ngày đã có ca này được khóa" : "Chỉ chọn được ngày đã có công"}</span>
+                </div>
+
+                {monthlyLoading ? <div className="empty-state">Đang tải dữ liệu tháng…</div> : (
+                  <div className="bulk-calendar-grid">
+                    {SHORT_WEEKDAYS.map((weekday) => <span className="bulk-weekday" key={weekday}>{weekday}</span>)}
+                    {bulkCalendarCells.map((date, index) => {
+                      if (!date) return <span className="bulk-calendar-empty" key={`empty-${index}`} />;
+                      const record = monthlyAttendance.find((item) => item.date === date);
+                      const alreadyHasShift = record?.shifts.some((shift) => shift.code === bulkShiftCode) ?? false;
+                      const disabled = bulkMode === "add" ? alreadyHasShift : !record;
+                      const selected = bulkSelectedDates.includes(date);
+                      return (
+                        <button
+                          type="button"
+                          key={date}
+                          className={`bulk-date-cell ${record ? "has-record" : ""} ${selected ? "selected" : ""} ${bulkMode === "delete" && selected ? "selected-delete" : ""}`}
+                          aria-pressed={selected}
+                          aria-label={`${dateLabel(date)}${record ? `, ${record.totalHours} giờ` : ", chưa ghi công"}`}
+                          disabled={disabled}
+                          onClick={() => toggleBulkDate(date)}
+                        >
+                          <strong>{Number(date.slice(-2))}</strong>
+                          <small>{record ? `${record.shifts.map((shift) => shift.code).join("+")} · ${record.totalHours}h` : "Trống"}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="bulk-action-footer">
+                  <span>{bulkSelectedDates.length} ngày đã chọn</span>
+                  {bulkMode === "add" ? (
+                    <button className="primary-button" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={saveBulkAttendance}>
+                      {savingBulk ? "Đang ghi…" : <><Check size={16} /> Ghi ca {bulkShiftCode} cho {bulkSelectedDates.length} ngày</>}
+                    </button>
+                  ) : (
+                    <button className="bulk-delete-button" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={deleteBulkAttendance}>
+                      {savingBulk ? "Đang xóa…" : <><Trash2 size={16} /> Xóa công {bulkSelectedDates.length} ngày</>}
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
+
             {activeTab === "week" && (
             <section className="panel week-panel">
               <div className="section-heading week-heading">
@@ -994,14 +1198,32 @@ export default function Home() {
                 </div>
 
                 <p className="sheet-gesture-hint">Trên điện thoại, chụm hoặc mở hai ngón tay để phóng to/thu nhỏ bảng; xoay ngang máy để xem rộng hơn.</p>
+                <div className="sheet-zoom-toolbar" aria-label="Điều chỉnh kích thước bảng">
+                  <span>Thu phóng bảng</span>
+                  <div className="sheet-zoom-controls">
+                    <button type="button" aria-label="Thu nhỏ bảng" onClick={() => adjustSheetZoom(-0.1)}>−</button>
+                    <strong>{Math.round(sheetZoom * 100)}%</strong>
+                    <button type="button" aria-label="Phóng to bảng" onClick={() => adjustSheetZoom(0.1)}>+</button>
+                    <button className="sheet-zoom-reset" type="button" onClick={() => setSheetZoom(1)}>100%</button>
+                  </div>
+                </div>
 
                 {monthlyMissingRateDays > 0 && !monthlyLoading && (
                   <p className="sheet-note">Đang bỏ qua {monthlyMissingRateDays} ngày chưa có mức lương riêng hoặc hệ số tuần.</p>
                 )}
 
                 {monthlyLoading ? <div className="empty-state">Đang tải bảng công…</div> : (
-                  <div className="sheet-table-wrap" role="region" aria-label="Bảng chấm công theo ngày trong tháng" tabIndex={0}>
-                    <table className="sheet-table">
+                  <div
+                    className="sheet-table-wrap"
+                    role="region"
+                    aria-label="Bảng chấm công theo ngày trong tháng"
+                    tabIndex={0}
+                    onTouchStart={startSheetPinch}
+                    onTouchMove={moveSheetPinch}
+                    onTouchEnd={endSheetPinch}
+                    onTouchCancel={endSheetPinch}
+                  >
+                    <table className="sheet-table" style={{ fontSize: `${12 * sheetZoom}px`, minWidth: `${980 * sheetZoom}px` }}>
                       <thead>
                         <tr>
                           <th>Ngày</th>
@@ -1114,18 +1336,11 @@ export default function Home() {
                     <article className="record-item" key={record._id}>
                       <button type="button" className="record-date" onClick={() => { setSelectedDate(record.date); setActiveTab("entry"); }}>{dateLabel(record.date)}</button>
                       <div className="record-content">
-                        <div className="record-codes">
-                          {record.shifts.map((shift) => {
-                            const tone = SHIFT_OPTIONS.find((s) => s.code === shift.code)?.tone || "gray";
-                            return (
-                              <span className={`mini-code tone-${tone}`} key={shift.code}>
-                                {shift.code}
-                              </span>
-                            );
-                          })}
+                        <div className="record-main-line">
+                          <span className="record-shift-summary">{shiftTimeSummary(record) || "Nghỉ"}</span>
+                          <span className="record-separator" aria-hidden="true">·</span>
+                          <span className="record-hours">{record.totalHours} giờ</span>
                         </div>
-                        {shiftTimeSummary(record) && <span className="record-shift-summary">{shiftTimeSummary(record)}</span>}
-                        <span className="record-hours">{record.totalHours} giờ</span>
                         {record.coworkers.length > 0 && <span className="coworker-names"><UsersRound size={12} /> {record.coworkers.join(", ")}</span>}
                       </div>
                       <button className="delete-button" type="button" aria-label={`Xóa ngày ${dateLabel(record.date)}`} onClick={() => deleteAttendance(record.date)}><Trash2 size={15} /></button>

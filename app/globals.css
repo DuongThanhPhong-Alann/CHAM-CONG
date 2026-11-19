@@ -2134,7 +2134,15 @@ button {
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.record-main-line {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
 }
 
@@ -2161,8 +2169,17 @@ button {
 }
 
 .record-hours {
+  flex: 0 0 auto;
   color: #1c1917;
   font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.record-separator {
+  flex: 0 0 auto;
+  color: #b3a89a;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -2179,10 +2196,14 @@ button {
 }
 
 .record-shift-summary {
-  flex-basis: 100%;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
   color: #6e665c;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delete-button {
@@ -2319,6 +2340,225 @@ button {
   display: none;
 }
 
+.bulk-tab {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.bulk-tab .side-column {
+  display: none;
+}
+
+.bulk-panel {
+  min-width: 0;
+}
+
+.bulk-mode-switch {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 5px;
+  border: 1px solid #ded5c5;
+  border-radius: 13px;
+  background: #f2eee5;
+}
+
+.bulk-mode-switch button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #6e665c;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bulk-mode-switch button.active {
+  border-color: #a7f3d0;
+  color: #047857;
+  background: linear-gradient(180deg, #ffffff, #e7f8ee);
+  box-shadow: 0 2px 5px rgba(15, 118, 110, 0.1);
+}
+
+.bulk-mode-switch button.active.bulk-delete-active {
+  border-color: #fca5a5;
+  color: #b91c1c;
+  background: linear-gradient(180deg, #ffffff, #fff0f0);
+  box-shadow: 0 2px 5px rgba(185, 28, 28, 0.08);
+}
+
+.bulk-shift-field {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 20px;
+}
+
+.bulk-shift-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid #c3b9a7;
+  border-top-color: #aea390;
+  border-bottom: 2px solid #ffffff;
+  border-radius: 11px;
+  color: #1c1917;
+  background: linear-gradient(180deg, #e5ddd0, #efe9dd);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.bulk-calendar-heading,
+.bulk-action-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bulk-calendar-heading {
+  margin-bottom: 10px;
+}
+
+.bulk-calendar-heading strong {
+  color: #2e2419;
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.bulk-calendar-heading span {
+  color: #787066;
+  font-size: 11px;
+  text-align: right;
+}
+
+.bulk-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #d8cfbe;
+  border-radius: 15px;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #f5ebd8, #e8d8bc);
+}
+
+.bulk-weekday {
+  padding: 3px 0;
+  color: #665138;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.bulk-calendar-empty {
+  min-height: 70px;
+}
+
+.bulk-date-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 70px;
+  padding: 6px 3px;
+  border: 1px solid #e0d6c5;
+  border-bottom: 3px solid #b8ae9a;
+  border-radius: 11px;
+  color: #29231d;
+  background: linear-gradient(180deg, #fffefa, #f0e9dc);
+  box-shadow: 0 2px 4px rgba(52, 42, 28, 0.08);
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.bulk-date-cell:not(:disabled):hover {
+  transform: translateY(-1px);
+  border-color: #7dd3fc;
+}
+
+.bulk-date-cell strong {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.bulk-date-cell small {
+  max-width: 100%;
+  overflow: hidden;
+  color: #787066;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-date-cell.has-record {
+  border-color: #a7d9c2;
+  background: linear-gradient(180deg, #f3fff8, #dff3e8);
+}
+
+.bulk-date-cell:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.bulk-date-cell.selected {
+  border-color: #10b981;
+  border-bottom-color: #047857;
+  color: #065f46;
+  background: linear-gradient(180deg, #ecfdf5, #a7f3d0);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.16);
+  opacity: 1;
+}
+
+.bulk-date-cell.selected-delete {
+  border-color: #ef4444;
+  border-bottom-color: #991b1b;
+  color: #991b1b;
+  background: linear-gradient(180deg, #fff1f1, #fecaca);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.12);
+}
+
+.bulk-action-footer {
+  margin-top: 18px;
+}
+
+.bulk-action-footer > span {
+  color: #544d45;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bulk-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 8px 15px;
+  border: 1px solid #ef4444;
+  border-top-color: #fecaca;
+  border-bottom: 3px solid #991b1b;
+  border-radius: 11px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #ef4444, #b91c1c);
+  box-shadow: 0 4px 9px rgba(185, 28, 28, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.bulk-delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .sheet-panel {
   min-width: 0;
 }
@@ -2388,10 +2628,66 @@ button {
   font-weight: 600;
 }
 
+.sheet-zoom-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sheet-zoom-toolbar > span {
+  color: #544d45;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sheet-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheet-zoom-controls button {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid #b5844c;
+  border-top-color: #ffffff;
+  border-bottom: 3px solid #784c22;
+  border-radius: 9px;
+  color: #3b220c;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #faecd2 0%, #e7c99a 60%, #d7b17b 100%);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sheet-zoom-controls button:active {
+  transform: translateY(1px);
+  border-bottom-width: 1px;
+}
+
+.sheet-zoom-controls strong {
+  min-width: 46px;
+  color: #0f766e;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sheet-zoom-controls .sheet-zoom-reset {
+  min-width: auto;
+  color: #075985;
+  font-size: 11px;
+}
+
 .sheet-table-wrap {
   max-height: 72vh;
   overflow: auto;
-  touch-action: pan-x pan-y pinch-zoom;
+  touch-action: pan-x pan-y;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   border: 1px solid #d8cfbe;
@@ -2413,7 +2709,7 @@ button {
 
 .sheet-table th,
 .sheet-table td {
-  padding: 10px 11px;
+  padding: 0.83em 0.92em;
   border-right: 1px solid #e7e0d4;
   border-bottom: 1px solid #e7e0d4;
   text-align: left;
@@ -2431,7 +2727,7 @@ button {
   z-index: 1;
   color: #ffffff;
   background: linear-gradient(145deg, #0f766e, #0369a1);
-  font-size: 11px;
+  font-size: 0.92em;
   font-weight: 800;
   letter-spacing: 0.2px;
   box-shadow: 0 2px 4px rgba(8, 51, 68, 0.16);
@@ -2457,7 +2753,7 @@ button {
   border: 0;
   color: #0369a1;
   background: transparent;
-  font-size: 12px;
+  font-size: 1em;
   font-weight: 800;
 }
 
@@ -2487,7 +2783,7 @@ button {
   border-radius: 999px;
   color: #787066;
   background: #f5f2ec;
-  font-size: 10.5px;
+  font-size: 0.875em;
   font-weight: 700;
 }
 
@@ -2513,7 +2809,7 @@ button {
   background:
     var(--wood-fibers),
     linear-gradient(180deg, #faecd2 0%, #e7c99a 60%, #d7b17b 100%);
-  font-size: 11px;
+  font-size: 0.92em;
   font-weight: 800;
 }
 
@@ -3101,6 +3397,33 @@ button {
 
   .sheet-gesture-hint {
     display: block;
+  }
+
+  .bulk-calendar-grid {
+    gap: 5px;
+    padding: 8px;
+  }
+
+  .bulk-date-cell,
+  .bulk-calendar-empty {
+    min-height: 56px;
+  }
+
+  .bulk-date-cell small {
+    font-size: 8px;
+  }
+
+  .bulk-action-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-action-footer > span {
+    text-align: center;
+  }
+
+  .bulk-delete-button {
+    width: 100%;
   }
 
   .week-selector {

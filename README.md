@@ -25,6 +25,7 @@
 
 - **Ca trong tuần · text:** xem lịch từ thứ Hai đến Chủ nhật, danh sách ca đã ghi và sao chép text chốt công cho đúng tuần đang chọn.
 - **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca, chỉnh giờ vào/ra thực tế theo bước 30 phút nếu cần, nhập giờ làm thêm theo bước 0,5 giờ, mức lương riêng theo giờ cho ngày đặc biệt và tên người làm chung nếu có. Mức riêng được nhân với tổng giờ trong ngày; để trống thì dùng hệ số tuần.
+- **Ghi/xóa nhiều ngày:** chọn nhiều ngày trong tháng để thêm cùng một ca hoặc xóa công đã ghi. Ca được thêm vào các ca hiện có, ngày đã có ca đó sẽ bỏ qua; thao tác xóa yêu cầu xác nhận.
 - **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca hoặc cập nhật mức lương riêng của một ngày, tổng lương tuần cập nhật theo dữ liệu đã lưu.
 - **Tính công theo tháng:** tính các ngày từ ngày 1 đến ngày cuối tháng, kể cả khi ngày 1 nằm giữa tuần; tuần đầu và tuần cuối chỉ tính những ngày thuộc tháng. Mức lương riêng của ngày được nhân với số giờ; nếu không có thì dùng hệ số tuần. Ngày thiếu cả hai mức sẽ bị bỏ qua, còn các khoản tính được vẫn được cộng vào tổng. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
 - **Bảng công tháng:** xem toàn bộ ngày trong tháng theo hàng, gồm thứ, ca và giờ làm, mức lương riêng theo giờ, hệ số tuần, tiền công và trạng thái. Bấm ngày để mở phần ghi công và chỉnh sửa ngày đó.
