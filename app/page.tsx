@@ -396,6 +396,7 @@ export default function Home() {
   }
 
   const moveWeek = (offset: number) => setSelectedDate(addDays(selectedDate || localDateString(new Date()), offset * 7));
+  const moveDay = (offset: number) => setSelectedDate(addDays(selectedDate || localDateString(new Date()), offset));
   const moveMonth = (offset: number) => {
     const [year, month] = (selectedMonth || localDateString(new Date()).slice(0, 7)).split("-").map(Number);
     const next = new Date(year, month - 1 + offset, 1, 12);
@@ -753,7 +754,13 @@ export default function Home() {
                 <label className="field-label" htmlFor="employee-name">Tên nhân viên</label>
                 <div className="input-wrap name-input"><UsersRound size={17} /><input id="employee-name" value={employeeName} onChange={(event) => setEmployeeName(event.target.value)} placeholder="Tên của bạn" /></div>
                 <label className="field-label date-label" htmlFor="work-date">Ngày làm</label>
-                <div className="input-wrap date-input"><CalendarDays size={17} /><input id="work-date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} /></div>
+                <div className="date-stepper">
+                  <div className="input-wrap date-input"><CalendarDays size={17} /><input id="work-date" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} /></div>
+                  <div className="week-controls date-controls">
+                    <button type="button" aria-label="Ngày trước" title="Ngày trước" onClick={() => moveDay(-1)}><ArrowLeft size={16} /></button>
+                    <button type="button" aria-label="Ngày sau" title="Ngày sau" onClick={() => moveDay(1)}><ArrowRight size={16} /></button>
+                  </div>
+                </div>
               </div>
 
               <div className="shift-title-row">

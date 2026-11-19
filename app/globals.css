@@ -1107,7 +1107,15 @@ button {
 
 .name-input { flex: 1 1 180px; }
 .date-label { margin-left: 6px; }
-.date-input { flex: 0 1 180px; }
+.date-stepper {
+  display: flex;
+  align-items: center;
+  flex: 0 1 270px;
+  min-width: 0;
+  gap: 7px;
+}
+.date-stepper .date-input { flex: 1 1 150px; }
+.date-controls { flex-shrink: 0; }
 
 /* ==========================================================================
    SỎI NGỌC KHOÁNG SẢN 9 CA LÀM (MÀU NHẠT TỰ NHIÊN)
@@ -2531,9 +2539,11 @@ button {
   }
 
   .name-input,
-  .date-input {
+  .date-stepper {
     width: 100%;
   }
+
+  .date-stepper .date-input { width: auto; }
 
   .shift-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
