@@ -1,6 +1,6 @@
 # Chốt Công
 
-Ứng dụng Next.js để ghi nhận ca làm, tổng hợp giờ theo tuần, xuất nội dung chốt công và tính lương theo tuần hoặc tháng sau khi nhập hệ số theo giờ. Ngày công, tên người làm chung và hệ số lương được lưu trong MongoDB.
+Ứng dụng Next.js để ghi nhận ca làm, tổng hợp giờ theo tuần, xuất nội dung chốt công và tính lương theo tuần hoặc tháng sau khi nhập hệ số theo giờ. Có thể nhập tiền thực riêng cho ngày đặc biệt; ngày công, tiền thực, tên người làm chung và hệ số lương được lưu trong MongoDB.
 
 ## Chạy ứng dụng
 
@@ -24,9 +24,9 @@
 ## Các tab
 
 - **Ca trong tuần · text:** xem lịch từ thứ Hai đến Chủ nhật, danh sách ca đã ghi và sao chép text chốt công cho đúng tuần đang chọn.
-- **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca, chỉnh giờ vào/ra thực tế theo bước 30 phút nếu cần, nhập giờ làm thêm theo bước 0,5 giờ và nhập tên người làm chung nếu có. Giờ làm thêm nối tiếp vào giờ tan của ca cuối và được cộng vào tổng giờ, lương tuần và lương tháng.
-- **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca, tổng lương của tuần cập nhật theo hệ số đã lưu.
-- **Tính công theo tháng:** xem tổng giờ và cộng tiền công của các tuần bắt đầu trong tháng. Tuần được tính trọn theo hệ số riêng đã lưu; tháng nào còn tuần có giờ làm nhưng chưa có hệ số sẽ chưa hiện tổng tiền. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
+- **Ghi nhận ca làm:** chọn ngày, một hoặc nhiều ca, chỉnh giờ vào/ra thực tế theo bước 30 phút nếu cần, nhập giờ làm thêm theo bước 0,5 giờ, tiền thực của ngày đặc biệt và tên người làm chung nếu có. Tiền thực được ưu tiên cho ngày đó; để trống thì lương tính theo tổng giờ nhân hệ số tuần.
+- **Tính công theo tuần:** nhập hệ số lương theo giờ, xem tổng giờ và tiền công theo từng ngày. Sau khi lưu thêm ca hoặc cập nhật tiền thực một ngày, tổng lương tuần cập nhật theo dữ liệu đã lưu.
+- **Tính công theo tháng:** tính các ngày từ ngày 1 đến ngày cuối tháng, kể cả khi ngày 1 nằm giữa tuần; tuần đầu và tuần cuối chỉ tính những ngày thuộc tháng. Ngày có tiền thực dùng số tiền đã nhập, các ngày khác dùng hệ số của tuần. Nếu còn ngày chưa nhập tiền thực và tuần đó chưa có hệ số, tổng lương sẽ chờ đủ dữ liệu. Tab tháng cũng có text chốt công riêng, chỉ lấy ngày làm thuộc tháng đang chọn và tự cập nhật khi đổi tháng.
 
 Có thể chọn trực tiếp tuần cũ bằng bộ chọn tuần, kể cả tuần chưa nhập hệ số. Khoảng tuần luôn hiển thị đủ ngày bắt đầu và ngày kết thúc, gồm cả năm.
 

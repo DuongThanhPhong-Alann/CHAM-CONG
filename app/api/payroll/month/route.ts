@@ -22,14 +22,12 @@ export async function GET(request: Request) {
     const firstDate = `${match[1]}-${match[2]}-01`;
     const lastDay = new Date(year, monthNumber, 0, 12).getDate();
     const lastDate = `${match[1]}-${match[2]}-${String(lastDay).padStart(2, "0")}`;
-    const firstWeekOfMonth = mondayOf(firstDate);
-    const firstWeek = firstWeekOfMonth < firstDate ? addDays(firstWeekOfMonth, 7) : firstWeekOfMonth;
+    const firstWeek = mondayOf(firstDate);
     const lastWeek = mondayOf(lastDate);
-    const endDate = addDays(lastWeek, 6);
 
     const [attendance, weeklyPays] = await Promise.all([
-      Attendance.find({ employeeName, date: { $gte: firstDate, $lte: endDate } })
-        .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1 })
+      Attendance.find({ employeeName, date: { $gte: firstDate, $lte: lastDate } })
+        .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1, actualPay: 1 })
         .sort({ date: 1 })
         .lean(),
       WeeklyPay.find({ employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
@@ -37,35 +35,46 @@ export async function GET(request: Request) {
         .lean(),
     ]);
 
-    const hoursByWeek = new Map<string, number>();
+    const attendanceByWeek = new Map<string, typeof attendance>();
     for (const record of attendance) {
       const weekStart = mondayOf(record.date);
-      if (weekStart < firstWeek || weekStart > lastWeek) continue;
-      hoursByWeek.set(weekStart, (hoursByWeek.get(weekStart) || 0) + record.totalHours);
+      const weekRecords = attendanceByWeek.get(weekStart) || [];
+      weekRecords.push(record);
+      attendanceByWeek.set(weekStart, weekRecords);
     }
     const rateByWeek = new Map(weeklyPays.map((pay) => [pay.weekStart, pay.hourlyRate]));
     const weeks: {
       weekStart: string;
       weekEnd: string;
+      periodStart: string;
+      periodEnd: string;
       hours: number;
       hourlyRate: number | null;
       pay: number | null;
     }[] = [];
     for (let weekStart = firstWeek; weekStart <= lastWeek; weekStart = addDays(weekStart, 7)) {
-      const hours = hoursByWeek.get(weekStart) || 0;
+      const weekRecords = attendanceByWeek.get(weekStart) || [];
+      const hours = weekRecords.reduce((total, record) => total + record.totalHours, 0);
       const hourlyRate = rateByWeek.get(weekStart) ?? null;
+      const missingRate = weekRecords.some((record) => record.totalHours > 0 && record.actualPay == null && hourlyRate === null);
+      const pay = missingRate
+        ? null
+        : weekRecords.reduce((total, record) => total + (record.actualPay ?? record.totalHours * (hourlyRate ?? 0)), 0);
+      const weekEnd = addDays(weekStart, 6);
       weeks.push({
         weekStart,
-        weekEnd: addDays(weekStart, 6),
+        weekEnd,
+        periodStart: weekStart < firstDate ? firstDate : weekStart,
+        periodEnd: weekEnd > lastDate ? lastDate : weekEnd,
         hours,
         hourlyRate,
-        pay: hours === 0 ? 0 : hourlyRate === null ? null : hours * hourlyRate,
+        pay: hours === 0 ? 0 : pay,
       });
     }
 
     return NextResponse.json({
       weeks,
-      attendance: attendance.filter((record) => record.date <= lastDate),
+      attendance,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể tải dữ liệu tính công tháng";

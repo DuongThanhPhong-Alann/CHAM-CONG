@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       ? body.shifts as { code?: unknown; start?: unknown; end?: unknown }[]
       : [];
     const extraHours = body.extraHours === undefined ? 0 : body.extraHours;
+    const actualPay = body.actualPay === undefined || body.actualPay === null ? null : body.actualPay;
     const coworkers = Array.isArray(body.coworkers)
       ? body.coworkers.map((name: unknown) => String(name).trim()).filter(Boolean)
       : [];
@@ -47,6 +48,9 @@ export async function POST(request: Request) {
     }
     if (typeof extraHours !== "number" || !Number.isFinite(extraHours) || extraHours < 0) {
       return NextResponse.json({ error: "Giờ làm thêm phải là số không âm" }, { status: 400 });
+    }
+    if (actualPay !== null && (typeof actualPay !== "number" || !Number.isFinite(actualPay) || actualPay < 0)) {
+      return NextResponse.json({ error: "Tiền thực của ngày phải là số không âm" }, { status: 400 });
     }
     const codes = requestedShifts.map((shift) => shift?.code);
     if (codes.some((code: unknown) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
@@ -86,7 +90,7 @@ export async function POST(request: Request) {
     }
     const saved = await Attendance.findOneAndUpdate(
       { employeeName, date },
-      { employeeName, date, shifts, coworkers, extraHours, totalHours },
+      { employeeName, date, shifts, coworkers, extraHours, totalHours, actualPay },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
     );
     return NextResponse.json({ attendance: saved });
