@@ -2310,6 +2310,202 @@ button {
 /* ==========================================================================
    CHÂN TRANG BỜ CÁT & SÓNG NƯỚC
    ========================================================================== */
+/* MONTHLY TIMESHEET GRID */
+.sheet-tab {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sheet-tab .side-column {
+  display: none;
+}
+
+.sheet-panel {
+  min-width: 0;
+}
+
+.sheet-heading {
+  margin-bottom: 18px;
+}
+
+.sheet-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.sheet-summary-card {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 12px 15px;
+  border: 1px solid #e1d7c5;
+  border-top: 1.5px solid #ffffff;
+  border-bottom: 3px solid #c8bda9;
+  border-radius: 13px;
+  background:
+    var(--stone-speckle),
+    linear-gradient(180deg, #fffefa, #f0e9dc);
+  box-shadow: 0 3px 8px rgba(52, 42, 28, 0.06);
+}
+
+.sheet-summary-card span {
+  color: #71685d;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sheet-summary-card strong {
+  overflow: hidden;
+  color: #1b242c;
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-summary-pay strong {
+  color: #0f766e;
+}
+
+.sheet-note {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 0 9px 9px 0;
+  color: #854d0e;
+  background: #fffbeb;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sheet-table-wrap {
+  max-height: 72vh;
+  overflow: auto;
+  border: 1px solid #d8cfbe;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 4px rgba(55, 42, 26, 0.08);
+  scrollbar-color: #b8ae9a #f1ece3;
+}
+
+.sheet-table {
+  width: 100%;
+  min-width: 980px;
+  border-spacing: 0;
+  border-collapse: separate;
+  color: #332d26;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-table th,
+.sheet-table td {
+  padding: 10px 11px;
+  border-right: 1px solid #e7e0d4;
+  border-bottom: 1px solid #e7e0d4;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sheet-table th:last-child,
+.sheet-table td:last-child {
+  border-right: 0;
+}
+
+.sheet-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: #ffffff;
+  background: linear-gradient(145deg, #0f766e, #0369a1);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 4px rgba(8, 51, 68, 0.16);
+}
+
+.sheet-table tbody tr:nth-child(even) {
+  background: rgba(239, 233, 220, 0.4);
+}
+
+.sheet-table tbody tr:hover {
+  background: #eaf7f7;
+}
+
+.sheet-table tbody tr.sheet-row-empty {
+  color: #92897d;
+}
+
+.sheet-table tbody tr.sheet-row-empty:hover {
+  background: #f4f6f2;
+}
+
+.sheet-date-button {
+  border: 0;
+  color: #0369a1;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sheet-date-button:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}
+
+.sheet-weekday {
+  text-transform: capitalize;
+}
+
+.sheet-number {
+  text-align: right !important;
+}
+
+.sheet-amount {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.sheet-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1px solid #e5dfd3;
+  border-radius: 999px;
+  color: #787066;
+  background: #f5f2ec;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.sheet-status-recorded {
+  border-color: #a7f3d0;
+  color: #047857;
+  background: #ecfdf5;
+}
+
+.sheet-status-missing {
+  border-color: #fcd34d;
+  color: #a16207;
+  background: #fffbeb;
+}
+
+.sheet-table tfoot th,
+.sheet-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  border-bottom: 0;
+  color: #3b220c;
+  background:
+    var(--wood-fibers),
+    linear-gradient(180deg, #faecd2 0%, #e7c99a 60%, #d7b17b 100%);
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .footer-note {
   display: flex;
   justify-content: space-between;
@@ -2874,6 +3070,18 @@ button {
 
   .pay-card h2 {
     font-size: 24px;
+  }
+
+  .sheet-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sheet-summary-pay {
+    grid-column: 1 / -1;
+  }
+
+  .sheet-table-wrap {
+    max-height: 68vh;
   }
 
   .week-selector {

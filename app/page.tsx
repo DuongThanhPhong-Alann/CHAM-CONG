@@ -17,6 +17,7 @@ import {
   Menu,
   Plus,
   Sparkles,
+  Table,
   Trash2,
   TreePine,
   UsersRound,
@@ -59,6 +60,7 @@ const TAB_LABELS = {
   entry: "Ghi nhận ca làm",
   payroll: "Tính công theo tuần",
   monthly: "Tính công theo tháng",
+  sheet: "Bảng công tháng",
 } as const;
 const currency = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 
@@ -132,7 +134,7 @@ function createExportText(employeeName: string, records: AttendanceEntry[], thro
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"week" | "entry" | "payroll" | "monthly">("week");
+  const [activeTab, setActiveTab] = useState<"week" | "entry" | "payroll" | "monthly" | "sheet">("week");
   const [employeeName, setEmployeeName] = useState("Thanh Phong");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -203,6 +205,30 @@ export default function Home() {
   const monthlyHours = monthlyWeeks.reduce((total, week) => total + week.hours, 0);
   const monthlyMissingRateDays = monthlyWeeks.reduce((total, week) => total + week.missingRateDays, 0);
   const monthlyPay = monthlyWeeks.reduce((total, week) => total + week.pay, 0);
+  const sheetRows = useMemo(() => {
+    if (!selectedMonth) return [];
+    const [year, month] = selectedMonth.split("-").map(Number);
+    const dayCount = new Date(year, month, 0, 12).getDate();
+    const recordByDate = new Map(monthlyAttendance.map((record) => [record.date, record]));
+    const rateByWeek = new Map(monthlyWeeks.map((week) => [week.weekStart, week.hourlyRate]));
+    return Array.from({ length: dayCount }, (_, index) => {
+      const date = `${selectedMonth}-${String(index + 1).padStart(2, "0")}`;
+      const record = recordByDate.get(date);
+      const hourlyRate = rateByWeek.get(mondayOf(date)) ?? null;
+      const pay = !record
+        ? null
+        : record.actualPay != null
+          ? record.totalHours * record.actualPay
+          : hourlyRate !== null
+            ? record.totalHours * hourlyRate
+            : record.totalHours === 0
+              ? 0
+              : null;
+      const weekday = new Date(`${date}T12:00:00`).toLocaleDateString("vi-VN", { weekday: "long" });
+      return { date, weekday, record, hourlyRate, pay };
+    });
+  }, [selectedMonth, monthlyAttendance, monthlyWeeks]);
+  const monthlyWorkDays = monthlyAttendance.filter((record) => record.totalHours > 0).length;
   const exportText = useMemo(() => createExportText(employeeName, attendance, selectedDate), [employeeName, attendance, selectedDate]);
   const monthlyExportText = useMemo(
     () => createExportText(employeeName, monthlyAttendance, "", `Chốt công ${formatMonthLabel(selectedMonth)}`),
@@ -260,7 +286,7 @@ export default function Home() {
   }, [weekStart, employeeName]);
 
   useEffect(() => {
-    if (activeTab === "monthly" && selectedMonth) void loadMonth(selectedMonth, employeeName);
+    if ((activeTab === "monthly" || activeTab === "sheet") && selectedMonth) void loadMonth(selectedMonth, employeeName);
     // Load the monthly summary when its tab, month, or employee changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedMonth, employeeName]);
@@ -692,6 +718,19 @@ export default function Home() {
                   <small>Cộng dồn số giờ và thu nhập các tuần</small>
                 </div>
               </button>
+
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "sheet" ? "active" : ""}`}
+                onClick={() => { setActiveTab("sheet"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-teal"><Table size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Bảng công tháng</strong>
+                  <small>Xem từng ngày theo hàng và cột</small>
+                </div>
+                <span className="drawer-tab-pill">{monthlyWorkDays} ngày</span>
+              </button>
             </div>
 
             <div className="drawer-actions">
@@ -734,7 +773,7 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === "monthly" ? (
+        {activeTab === "monthly" || activeTab === "sheet" ? (
           <div className="week-selector">
             <div><span className="week-selector-label">THÁNG ĐANG XEM</span><strong>{formatMonthLabel(selectedMonth)}</strong></div>
             <div className="week-selector-actions">
@@ -939,6 +978,78 @@ export default function Home() {
                 <strong>{weeklyHours}<small> giờ</small></strong>
               </div>
             </section>
+            )}
+
+            {activeTab === "sheet" && (
+              <section className="panel sheet-panel">
+                <div className="section-heading sheet-heading">
+                  <div className="heading-icon heading-icon-teal"><Table size={18} /></div>
+                  <div><h2>Bảng chấm công tháng</h2><p>{formatMonthLabel(selectedMonth)} · bấm vào ngày để xem hoặc sửa công</p></div>
+                </div>
+
+                <div className="sheet-summary">
+                  <div className="sheet-summary-card"><span>Ngày có công</span><strong>{monthlyWorkDays}</strong></div>
+                  <div className="sheet-summary-card"><span>Tổng giờ</span><strong>{monthlyHours.toLocaleString("vi-VN")} giờ</strong></div>
+                  <div className="sheet-summary-card sheet-summary-pay"><span>Tổng tiền công</span><strong>{currency.format(monthlyPay)}</strong></div>
+                </div>
+
+                {monthlyMissingRateDays > 0 && !monthlyLoading && (
+                  <p className="sheet-note">Đang bỏ qua {monthlyMissingRateDays} ngày chưa có mức lương riêng hoặc hệ số tuần.</p>
+                )}
+
+                {monthlyLoading ? <div className="empty-state">Đang tải bảng công…</div> : (
+                  <div className="sheet-table-wrap" role="region" aria-label="Bảng chấm công theo ngày trong tháng" tabIndex={0}>
+                    <table className="sheet-table">
+                      <thead>
+                        <tr>
+                          <th>Ngày</th>
+                          <th>Thứ</th>
+                          <th>Ca / giờ làm</th>
+                          <th className="sheet-number">Giờ</th>
+                          <th className="sheet-number">Mức riêng / giờ</th>
+                          <th className="sheet-number">Hệ số tuần</th>
+                          <th className="sheet-number">Tiền công</th>
+                          <th>Ghi chú</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sheetRows.map(({ date, weekday, record, hourlyRate: dayRate, pay }) => {
+                          const status = !record
+                            ? "Chưa ghi"
+                            : record.totalHours === 0
+                              ? "Nghỉ"
+                              : pay === null
+                                ? "Thiếu mức"
+                                : record.actualPay != null
+                                  ? "Mức riêng"
+                                  : "Theo tuần";
+                          return (
+                            <tr className={!record ? "sheet-row-empty" : ""} key={date}>
+                              <td><button className="sheet-date-button" type="button" onClick={() => { setSelectedDate(date); setActiveTab("entry"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{dateLabel(date)}</button></td>
+                              <td className="sheet-weekday">{weekday}</td>
+                              <td>{!record ? "—" : record.totalHours === 0 ? "Nghỉ" : shiftTimeSummary(record)}</td>
+                              <td className="sheet-number">{record ? record.totalHours.toLocaleString("vi-VN") : "—"}</td>
+                              <td className="sheet-number">{record?.actualPay != null ? currency.format(record.actualPay) : "—"}</td>
+                              <td className="sheet-number">{dayRate !== null ? currency.format(dayRate) : "—"}</td>
+                              <td className="sheet-number sheet-amount">{pay !== null ? currency.format(pay) : "—"}</td>
+                              <td><span className={`sheet-status ${status === "Thiếu mức" ? "sheet-status-missing" : record ? "sheet-status-recorded" : ""}`}>{status}</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr>
+                          <th colSpan={3}>Tổng tháng</th>
+                          <th className="sheet-number">{monthlyHours.toLocaleString("vi-VN")} giờ</th>
+                          <th colSpan={2}>Ngày có công: {monthlyWorkDays}</th>
+                          <th className="sheet-number sheet-amount">{currency.format(monthlyPay)}</th>
+                          <th>{monthlyMissingRateDays ? `Bỏ qua ${monthlyMissingRateDays} ngày` : "Đã tính đủ"}</th>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </section>
             )}
           </div>
 
