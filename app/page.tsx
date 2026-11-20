@@ -26,7 +26,7 @@ import {
   X,
 } from "lucide-react";
 import { addDays, dateLabel, isoWeekValue, localDateString, mondayFromIsoWeek, mondayOf } from "@/lib/dates";
-import { SHIFT_OPTIONS, type Shift, type ShiftCode } from "@/lib/shifts";
+import { SHIFT_OPTIONS, isShiftCode, type Shift, type ShiftCode } from "@/lib/shifts";
 
 type AttendanceEntry = {
   _id: string;
@@ -52,6 +52,9 @@ type WeeklySummary = {
 
 type MonthlyAttendanceEntry = AttendanceEntry;
 type ShiftTimeDraft = { start: string; end: string };
+type SheetDraft = { shifts: string; actualPay: string; weeklyRate: string };
+type SheetEditableField = keyof SheetDraft;
+type SheetSaveFeedback = { status: "dirty" | "saving" | "saved" | "error"; error?: string };
 type SignedInAccount = { id: string; displayName: string; phone: string; email: string; role: "admin" | "user" };
 type TimesheetOption = { id: string; name: string; logicKey: string };
 type ManagedAccount = SignedInAccount;
@@ -145,6 +148,10 @@ export default function Home() {
   const [attendance, setAttendance] = useState<AttendanceEntry[]>([]);
   const [monthlyAttendance, setMonthlyAttendance] = useState<MonthlyAttendanceEntry[]>([]);
   const [monthlyWeeks, setMonthlyWeeks] = useState<WeeklySummary[]>([]);
+  const [sheetDrafts, setSheetDrafts] = useState<Record<string, SheetDraft>>({});
+  const [sheetSaveFeedback, setSheetSaveFeedback] = useState<Record<string, Partial<Record<SheetEditableField, SheetSaveFeedback>>>>({});
+  const sheetSaveQueues = useRef(new Map<string, Promise<void>>());
+  const monthLoadVersion = useRef(0);
   const [sheetZoom, setSheetZoom] = useState(1);
   const sheetPinchStart = useRef<{ distance: number; zoom: number } | null>(null);
   const [bulkMode, setBulkMode] = useState<"add" | "delete">("add");
@@ -170,6 +177,12 @@ export default function Home() {
   const [authView, setAuthView] = useState<"loading" | "login" | "sheets" | "accounts" | "app">("loading");
   const [authAccount, setAuthAccount] = useState<SignedInAccount | null>(null);
   const [selectedTimesheet, setSelectedTimesheet] = useState<TimesheetOption | null>(null);
+  const sheetContext = useRef({ month: "", employeeName: "", timesheetId: "" });
+  sheetContext.current = {
+    month: selectedMonth,
+    employeeName: employeeName.trim() || "Thanh Phong",
+    timesheetId: selectedTimesheet?.id ?? "",
+  };
   const [timesheets, setTimesheets] = useState<TimesheetOption[]>([]);
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -268,10 +281,14 @@ export default function Home() {
     const dayCount = new Date(year, month, 0, 12).getDate();
     const recordByDate = new Map(monthlyAttendance.map((record) => [record.date, record]));
     const rateByWeek = new Map(monthlyWeeks.map((week) => [week.weekStart, week.hourlyRate]));
+    const seenWeeks = new Set<string>();
     return Array.from({ length: dayCount }, (_, index) => {
       const date = `${selectedMonth}-${String(index + 1).padStart(2, "0")}`;
       const record = recordByDate.get(date);
-      const hourlyRate = rateByWeek.get(mondayOf(date)) ?? null;
+      const weekStart = mondayOf(date);
+      const hourlyRate = rateByWeek.get(weekStart) ?? null;
+      const isRateEntry = !seenWeeks.has(weekStart);
+      seenWeeks.add(weekStart);
       const pay = !record
         ? null
         : record.actualPay != null
@@ -282,7 +299,7 @@ export default function Home() {
               ? 0
               : null;
       const weekday = new Date(`${date}T12:00:00`).toLocaleDateString("vi-VN", { weekday: "long" });
-      return { date, weekday, record, hourlyRate, pay };
+      return { date, weekday, record, hourlyRate, pay, isRateEntry };
     });
   }, [selectedMonth, monthlyAttendance, monthlyWeeks]);
   const monthlyWorkDays = monthlyAttendance.filter((record) => record.totalHours > 0).length;
@@ -352,26 +369,262 @@ export default function Home() {
     }
   }
 
-  async function loadMonth(month: string, name: string) {
+  async function loadMonth(month: string, name: string, quiet = false) {
     if (!month || !selectedTimesheet) return;
-    setMonthlyLoading(true);
-    setError("");
-    setMonthlyWeeks([]);
-    setMonthlyAttendance([]);
+    const requestVersion = ++monthLoadVersion.current;
+    if (!quiet) {
+      setMonthlyLoading(true);
+      setError("");
+      setMonthlyWeeks([]);
+      setMonthlyAttendance([]);
+      setSheetDrafts({});
+      setSheetSaveFeedback({});
+    }
     try {
       const params = new URLSearchParams({ month, employee: name.trim() || "Thanh Phong", timesheetId: selectedTimesheet.id });
       const response = await fetch(`/api/payroll/month?${params}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không tải được dữ liệu tháng");
-      setMonthlyWeeks(data.weeks as WeeklySummary[]);
-      setMonthlyAttendance(data.attendance as MonthlyAttendanceEntry[]);
+      const stillCurrent = requestVersion === monthLoadVersion.current
+        && sheetContext.current.month === month
+        && sheetContext.current.employeeName === (name.trim() || "Thanh Phong")
+        && sheetContext.current.timesheetId === selectedTimesheet.id;
+      if (stillCurrent) {
+        setMonthlyWeeks(data.weeks as WeeklySummary[]);
+        setMonthlyAttendance(data.attendance as MonthlyAttendanceEntry[]);
+      }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Không tải được dữ liệu tháng");
-      setMonthlyWeeks([]);
-      setMonthlyAttendance([]);
+      const stillCurrent = requestVersion === monthLoadVersion.current
+        && sheetContext.current.month === month
+        && sheetContext.current.employeeName === (name.trim() || "Thanh Phong")
+        && sheetContext.current.timesheetId === selectedTimesheet.id;
+      if (!quiet && stillCurrent) {
+        setError(loadError instanceof Error ? loadError.message : "Không tải được dữ liệu tháng");
+        setMonthlyWeeks([]);
+        setMonthlyAttendance([]);
+      }
+      if (quiet) throw loadError;
     } finally {
-      setMonthlyLoading(false);
+      if (requestVersion === monthLoadVersion.current) setMonthlyLoading(false);
     }
+  }
+
+  function sheetKey(date: string) {
+    return `${selectedTimesheet?.id ?? ""}:${employeeName.trim() || "Thanh Phong"}:${date}`;
+  }
+
+  function isCurrentSheetDate(date: string) {
+    return sheetContext.current.month === date.slice(0, 7)
+      && sheetContext.current.employeeName === (employeeName.trim() || "Thanh Phong")
+      && sheetContext.current.timesheetId === (selectedTimesheet?.id ?? "");
+  }
+
+  function sheetDraftFor(record: MonthlyAttendanceEntry | undefined, weeklyRate: number | null): SheetDraft {
+    return {
+      shifts: record?.shifts.map((shift) => shift.code).join(", ") ?? "",
+      actualPay: record?.actualPay == null ? "" : String(record.actualPay),
+      weeklyRate: weeklyRate == null ? "" : String(weeklyRate),
+    };
+  }
+
+  function updateSheetDraft(date: string, record: MonthlyAttendanceEntry | undefined, weeklyRate: number | null, field: SheetEditableField, value: string) {
+    const key = sheetKey(date);
+    setSheetDrafts((current) => ({
+      ...current,
+      [key]: { ...(current[key] ?? sheetDraftFor(record, weeklyRate)), [field]: value },
+    }));
+    setSheetSaveFeedback((current) => ({
+      ...current,
+      [key]: { ...current[key], [field]: { status: "dirty" } },
+    }));
+  }
+
+  function setSheetFieldFeedback(date: string, field: SheetEditableField, feedback: SheetSaveFeedback) {
+    const key = sheetKey(date);
+    setSheetSaveFeedback((current) => ({
+      ...current,
+      [key]: { ...current[key], [field]: feedback },
+    }));
+  }
+
+  function saveSheetAttendance(date: string, record: MonthlyAttendanceEntry | undefined, weeklyRate: number | null) {
+    const key = sheetKey(date);
+    const draft = sheetDrafts[key] ?? sheetDraftFor(record, weeklyRate);
+    const baseline = sheetDraftFor(record, weeklyRate);
+    if (draft.shifts === baseline.shifts && draft.actualPay === baseline.actualPay && !sheetSaveQueues.current.has(key)) {
+      setSheetFieldFeedback(date, "shifts", { status: "saved" });
+      setSheetFieldFeedback(date, "actualPay", { status: "saved" });
+      return;
+    }
+    const previous = sheetSaveQueues.current.get(key) ?? Promise.resolve();
+    const save = previous.catch(() => undefined).then(async () => {
+      const codes = draft.shifts.trim()
+        ? draft.shifts.toUpperCase().split(/[\s,+·]+/).filter(Boolean)
+        : [];
+      const parsedRate = draft.actualPay.trim() === "" ? null : Number(draft.actualPay);
+      if (codes.some((code) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
+        setSheetFieldFeedback(date, "shifts", { status: "error", error: "Ca không hợp lệ; nhập mã như A, B hoặc để trống để xóa ngày" });
+        return;
+      }
+      if (codes.includes("O") && codes.length > 1) {
+        setSheetFieldFeedback(date, "shifts", { status: "error", error: "Ca nghỉ không thể đi cùng ca làm khác" });
+        return;
+      }
+      if (parsedRate !== null && (!Number.isFinite(parsedRate) || parsedRate < 0)) {
+        setSheetFieldFeedback(date, "actualPay", { status: "error", error: "Mức riêng phải là số không âm" });
+        return;
+      }
+      if (!codes.length && !record) {
+        if (draft.actualPay.trim()) {
+          setSheetFieldFeedback(date, "actualPay", { status: "error", error: "Nhập ca làm trước khi lưu mức riêng" });
+        }
+        return;
+      }
+
+      setSheetFieldFeedback(date, "shifts", { status: "saving" });
+      setSheetFieldFeedback(date, "actualPay", { status: "saving" });
+      try {
+        let savedRecord: MonthlyAttendanceEntry | null = null;
+        if (!codes.length) {
+          const response = await fetch("/api/attendance", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              timesheetId: selectedTimesheet?.id,
+              employeeName: employeeName.trim() || "Thanh Phong",
+              date,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Không xóa được ngày công");
+        } else {
+          const existingShifts = new Map((record?.shifts ?? []).map((shift) => [shift.code, shift]));
+          const shifts = codes.map((code) => {
+            const existing = existingShifts.get(code as ShiftCode);
+            if (existing) return existing;
+            const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
+            return { code: option.code, start: option.start, end: option.end, hours: option.hours };
+          });
+          const extraHours = codes.includes("O") ? 0 : record?.extraHours ?? 0;
+          const totalHours = shifts.reduce((total, shift) => total + shift.hours, 0) + extraHours;
+          if (totalHours > 14) {
+            setSheetFieldFeedback(date, "shifts", { status: "error", error: "Tổng giờ làm trong một ngày không được vượt quá 14 tiếng" });
+            return;
+          }
+          const response = await fetch("/api/attendance", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              timesheetId: selectedTimesheet?.id,
+              employeeName: employeeName.trim() || "Thanh Phong",
+              date,
+              shifts,
+              coworkers: record?.coworkers ?? [],
+              extraHours,
+              actualPay: parsedRate,
+              totalHours,
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Không lưu được ngày công");
+          savedRecord = data.attendance as MonthlyAttendanceEntry;
+        }
+
+        if (isCurrentSheetDate(date)) {
+          setMonthlyAttendance((current) => {
+            const next = current.filter((item) => item.date !== date);
+            if (savedRecord) next.push(savedRecord);
+            return next.sort((a, b) => a.date.localeCompare(b.date));
+          });
+        }
+        setSheetDrafts((current) => {
+          if (current[key]?.shifts !== draft.shifts || current[key]?.actualPay !== draft.actualPay) return current;
+          return {
+            ...current,
+            [key]: {
+              ...current[key],
+              shifts: savedRecord?.shifts.map((shift) => shift.code).join(", ") ?? "",
+              actualPay: savedRecord?.actualPay == null ? "" : String(savedRecord.actualPay),
+            },
+          };
+        });
+        setSheetFieldFeedback(date, "shifts", { status: "saved" });
+        setSheetFieldFeedback(date, "actualPay", { status: "saved" });
+        if (isCurrentSheetDate(date)) {
+          try {
+            await loadMonth(date.slice(0, 7), employeeName, true);
+          } catch {
+            setSheetFieldFeedback(date, "actualPay", { status: "error", error: "Đã lưu dữ liệu nhưng chưa cập nhật được tổng tháng" });
+          }
+        }
+      } catch (saveError) {
+        const message = saveError instanceof Error ? saveError.message : "Không lưu được dữ liệu ngày";
+        setSheetFieldFeedback(date, "shifts", { status: "error", error: message });
+        setSheetFieldFeedback(date, "actualPay", { status: "error", error: message });
+      }
+    });
+    sheetSaveQueues.current.set(key, save);
+    void save.finally(() => {
+      if (sheetSaveQueues.current.get(key) === save) sheetSaveQueues.current.delete(key);
+    });
+  }
+
+  function saveSheetWeeklyRate(date: string, weeklyRate: number | null) {
+    const key = sheetKey(date);
+    const draft = sheetDrafts[key] ?? sheetDraftFor(undefined, weeklyRate);
+    const input = draft.weeklyRate.trim();
+    const parsedRate = input === "" ? null : Number(input);
+    const weekStart = mondayOf(date);
+    const previousRate = monthlyWeeks.find((week) => week.weekStart === weekStart)?.hourlyRate ?? null;
+    const queueKey = `${sheetKey(weekStart)}:weekly-rate`;
+    if (parsedRate === previousRate && !sheetSaveQueues.current.has(queueKey)) {
+      setSheetFieldFeedback(date, "weeklyRate", { status: "saved" });
+      return;
+    }
+    if (parsedRate !== null && (!Number.isFinite(parsedRate) || parsedRate < 0)) {
+      setSheetFieldFeedback(date, "weeklyRate", { status: "error", error: "Hệ số tuần phải là số không âm" });
+      return;
+    }
+
+    const previous = sheetSaveQueues.current.get(queueKey) ?? Promise.resolve();
+    const save = previous.catch(() => undefined).then(async () => {
+      setSheetFieldFeedback(date, "weeklyRate", { status: "saving" });
+      try {
+        const response = await fetch("/api/payroll", {
+          method: parsedRate === null ? "DELETE" : "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            timesheetId: selectedTimesheet?.id,
+            employeeName: employeeName.trim() || "Thanh Phong",
+            weekStart,
+            ...(parsedRate === null ? {} : { hourlyRate: parsedRate }),
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Không lưu được hệ số tuần");
+        setSheetDrafts((current) => {
+          if (current[key]?.weeklyRate !== draft.weeklyRate) return current;
+          return { ...current, [key]: { ...current[key], weeklyRate: parsedRate === null ? "" : String(data.hourlyRate) } };
+        });
+        setSheetFieldFeedback(date, "weeklyRate", { status: "saved" });
+        if (isCurrentSheetDate(date)) {
+          try {
+            await loadMonth(date.slice(0, 7), employeeName, true);
+          } catch {
+            setSheetFieldFeedback(date, "weeklyRate", { status: "error", error: "Đã lưu hệ số nhưng chưa cập nhật được tổng tháng" });
+          }
+        }
+      } catch (saveError) {
+        setSheetFieldFeedback(date, "weeklyRate", {
+          status: "error",
+          error: saveError instanceof Error ? saveError.message : "Không lưu được hệ số tuần",
+        });
+      }
+    });
+    sheetSaveQueues.current.set(queueKey, save);
+    void save.finally(() => {
+      if (sheetSaveQueues.current.get(queueKey) === save) sheetSaveQueues.current.delete(queueKey);
+    });
   }
 
   useEffect(() => {
@@ -1465,7 +1718,7 @@ export default function Home() {
               <section className="panel sheet-panel">
                 <div className="section-heading sheet-heading">
                   <div className="heading-icon heading-icon-teal"><Table size={18} /></div>
-                  <div><h2>Bảng chấm công tháng</h2><p>{formatMonthLabel(selectedMonth)} · bấm vào ngày để xem hoặc sửa công</p></div>
+                  <div><h2>Bảng chấm công tháng</h2><p>{formatMonthLabel(selectedMonth)} · sửa ô trực tiếp, dữ liệu tự lưu khi rời ô</p></div>
                 </div>
 
                 <div className="sheet-summary">
@@ -1474,6 +1727,7 @@ export default function Home() {
                   <div className="sheet-summary-card sheet-summary-pay"><span>Tổng tiền công</span><strong>{currency.format(monthlyPay)}</strong></div>
                 </div>
 
+                <p className="sheet-edit-hint">Nhập mã ca như A, B; để trống ô ca để xóa ngày. Mức riêng và hệ số tuần tự lưu khi bạn rời ô. Hệ số tuần áp dụng cho cả tuần.</p>
                 <p className="sheet-gesture-hint">Trên điện thoại, chụm hoặc mở hai ngón tay để phóng to/thu nhỏ bảng; xoay ngang máy để xem rộng hơn.</p>
                 <div className="sheet-zoom-toolbar" aria-label="Điều chỉnh kích thước bảng">
                   <span>Thu phóng bảng</span>
@@ -1500,7 +1754,7 @@ export default function Home() {
                     onTouchEnd={endSheetPinch}
                     onTouchCancel={endSheetPinch}
                   >
-                    <table className="sheet-table" style={{ fontSize: `${12 * sheetZoom}px`, minWidth: `${980 * sheetZoom}px` }}>
+                    <table className="sheet-table" style={{ fontSize: `${12 * sheetZoom}px`, minWidth: `${1080 * sheetZoom}px` }}>
                       <thead>
                         <tr>
                           <th>Ngày</th>
@@ -1508,13 +1762,20 @@ export default function Home() {
                           <th>Ca / giờ làm</th>
                           <th className="sheet-number">Giờ</th>
                           <th className="sheet-number">Mức riêng / giờ</th>
-                          <th className="sheet-number">Hệ số tuần</th>
+                          <th className="sheet-number">Hệ số tuần · cả tuần</th>
                           <th className="sheet-number">Tiền công</th>
                           <th>Ghi chú</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {sheetRows.map(({ date, weekday, record, hourlyRate: dayRate, pay }) => {
+                        {sheetRows.map(({ date, weekday, record, hourlyRate: dayRate, pay, isRateEntry }) => {
+                          const rowKey = sheetKey(date);
+                          const draft = sheetDrafts[rowKey] ?? sheetDraftFor(record, dayRate);
+                          const feedback = sheetSaveFeedback[rowKey] ?? {};
+                          const rowFeedback = Object.values(feedback).find((item) => item?.status === "error")
+                            ?? Object.values(feedback).find((item) => item?.status === "saving")
+                            ?? Object.values(feedback).find((item) => item?.status === "dirty")
+                            ?? Object.values(feedback).find((item) => item?.status === "saved");
                           const status = !record
                             ? "Chưa ghi"
                             : record.totalHours === 0
@@ -1528,12 +1789,57 @@ export default function Home() {
                             <tr className={!record ? "sheet-row-empty" : ""} key={date}>
                               <td><button className="sheet-date-button" type="button" onClick={() => { setSelectedDate(date); setActiveTab("entry"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{dateLabel(date)}</button></td>
                               <td className="sheet-weekday">{weekday}</td>
-                              <td>{!record ? "—" : record.totalHours === 0 ? "Nghỉ" : shiftTimeSummary(record)}</td>
+                              <td>
+                                <input
+                                  className="sheet-cell-input sheet-shift-input"
+                                  type="text"
+                                  aria-label={`Ca làm ngày ${dateLabel(date)}`}
+                                  title="Nhập mã ca, cách nhau bằng dấu phẩy; để trống để xóa ngày"
+                                  placeholder="A, B"
+                                  value={draft.shifts}
+                                  onChange={(event) => updateSheetDraft(date, record, dayRate, "shifts", event.target.value)}
+                                  onBlur={() => saveSheetAttendance(date, record, dayRate)}
+                                  onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                  spellCheck={false}
+                                />
+                                {record && record.totalHours > 0 && <small className="sheet-cell-detail">{shiftTimeSummary(record)}{(record.extraHours ?? 0) > 0 ? ` · +${record.extraHours} giờ thêm` : ""}</small>}
+                              </td>
                               <td className="sheet-number">{record ? record.totalHours.toLocaleString("vi-VN") : "—"}</td>
-                              <td className="sheet-number">{record?.actualPay != null ? currency.format(record.actualPay) : "—"}</td>
-                              <td className="sheet-number">{dayRate !== null ? currency.format(dayRate) : "—"}</td>
+                              <td className="sheet-number">
+                                <input
+                                  className="sheet-cell-input sheet-money-input"
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  aria-label={`Mức lương riêng mỗi giờ ngày ${dateLabel(date)}`}
+                                  placeholder="Theo tuần"
+                                  value={draft.actualPay}
+                                  onChange={(event) => updateSheetDraft(date, record, dayRate, "actualPay", event.target.value)}
+                                  onBlur={() => saveSheetAttendance(date, record, dayRate)}
+                                  onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                />
+                              </td>
+                              <td className="sheet-number">
+                                {isRateEntry ? (
+                                  <input
+                                    className="sheet-cell-input sheet-money-input"
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    aria-label={`Hệ số lương tuần bắt đầu ${dateLabel(mondayOf(date))}`}
+                                    placeholder="Chưa có"
+                                    value={draft.weeklyRate}
+                                    onChange={(event) => updateSheetDraft(date, record, dayRate, "weeklyRate", event.target.value)}
+                                    onBlur={() => saveSheetWeeklyRate(date, dayRate)}
+                                    onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                  />
+                                ) : dayRate !== null ? currency.format(dayRate) : "—"}
+                              </td>
                               <td className="sheet-number sheet-amount">{pay !== null ? currency.format(pay) : "—"}</td>
-                              <td><span className={`sheet-status ${status === "Thiếu mức" ? "sheet-status-missing" : record ? "sheet-status-recorded" : ""}`}>{status}</span></td>
+                              <td>
+                                <span className={`sheet-status ${status === "Thiếu mức" ? "sheet-status-missing" : record ? "sheet-status-recorded" : ""}`}>{status}</span>
+                                {rowFeedback && <small className={`sheet-save-feedback sheet-save-${rowFeedback.status}`} role={rowFeedback.status === "error" ? "alert" : "status"}>{rowFeedback.error ?? (rowFeedback.status === "saving" ? "Đang lưu…" : rowFeedback.status === "dirty" ? "Chưa lưu · rời ô để lưu" : "Đã tự lưu")}</small>}
+                              </td>
                             </tr>
                           );
                         })}
