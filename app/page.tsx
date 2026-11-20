@@ -160,6 +160,7 @@ export default function Home() {
   const [savingBulk, setSavingBulk] = useState(false);
   const [selectedCodes, setSelectedCodes] = useState<ShiftCode[]>([]);
   const [shiftTimeDrafts, setShiftTimeDrafts] = useState<Record<string, ShiftTimeDraft>>({});
+  const [shiftDurationDrafts, setShiftDurationDrafts] = useState<Record<string, string>>({});
   const [extraHoursDraft, setExtraHoursDraft] = useState("0");
   const [actualPayDraft, setActualPayDraft] = useState("");
   const [coworkersInput, setCoworkersInput] = useState("");
@@ -251,8 +252,11 @@ export default function Home() {
     const draft = shiftTimeDrafts[code] ?? { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) };
     const start = timeInputToHours(draft.start);
     const end = timeInputToHours(draft.end);
-    const valid = Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end <= 24 && end > start;
-    return { code, start, end, hours: valid ? end - start : 0, valid };
+    const durationDraft = shiftDurationDrafts[code];
+    const hours = durationDraft === undefined ? end - start : Number(durationDraft);
+    const valid = Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(hours)
+      && start >= 0 && end <= 24 && end > start && hours > 0 && Math.abs(hours - (end - start)) < 0.001;
+    return { code, start, end, hours: valid ? hours : 0, valid };
   });
   const validShiftTimes = selectedShifts.every((shift) => shift.valid);
   const parsedExtraHours = extraHoursDraft.trim() === "" ? 0 : Number(extraHoursDraft);
@@ -649,15 +653,18 @@ export default function Home() {
     setExtraHoursDraft(String(existing?.extraHours ?? 0));
     setActualPayDraft(existing?.actualPay == null ? "" : String(existing.actualPay));
     const drafts: Record<string, ShiftTimeDraft> = {};
+    const durations: Record<string, string> = {};
     if (existing) {
       for (const shift of existing.shifts) {
         drafts[shift.code] = {
           start: hoursToTimeInput(shift.start),
           end: hoursToTimeInput(shift.end),
         };
+        durations[shift.code] = String(shift.hours);
       }
     }
     setShiftTimeDrafts(drafts);
+    setShiftDurationDrafts(durations);
     setCoworkersInput(existing?.coworkers.join(", ") ?? "");
   }, [selectedDate, attendance]);
 
@@ -672,7 +679,40 @@ export default function Home() {
       ...current,
       [code]: { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) },
     });
+    setShiftDurationDrafts((current) => {
+      if (current[code] !== undefined) return current;
+      const draft = shiftTimeDrafts[code] ?? { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) };
+      const duration = timeInputToHours(draft.end) - timeInputToHours(draft.start);
+      return { ...current, [code]: Number.isFinite(duration) ? String(duration) : "" };
+    });
     setSelectedCodes((current) => option.hours === 0 ? [code] : [...current.filter((item) => item !== "O"), code]);
+  }
+
+  function updateShiftTime(code: ShiftCode, field: keyof ShiftTimeDraft, value: string) {
+    const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
+    const draft = shiftTimeDrafts[code] ?? { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) };
+    const nextDraft = { ...draft, [field]: value };
+    setShiftTimeDrafts((current) => ({ ...current, [code]: nextDraft }));
+    const start = timeInputToHours(nextDraft.start);
+    const end = timeInputToHours(nextDraft.end);
+    setShiftDurationDrafts((current) => ({
+      ...current,
+      [code]: Number.isFinite(start) && Number.isFinite(end) && end > start ? String(end - start) : "",
+    }));
+  }
+
+  function updateShiftDuration(code: ShiftCode, value: string) {
+    setShiftDurationDrafts((current) => ({ ...current, [code]: value }));
+    const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
+    const draft = shiftTimeDrafts[code] ?? { start: hoursToTimeInput(option.start), end: hoursToTimeInput(option.end) };
+    const start = timeInputToHours(draft.start);
+    const hours = value.trim() === "" ? Number.NaN : Number(value);
+    const end = start + hours;
+    if (!Number.isFinite(start) || !Number.isFinite(hours) || hours <= 0 || end > 24 || !Number.isInteger(hours * 2)) return;
+    setShiftTimeDrafts((current) => ({
+      ...current,
+      [code]: { ...draft, end: hoursToTimeInput(end) },
+    }));
   }
 
   async function saveAttendance() {
@@ -1486,6 +1526,7 @@ export default function Home() {
               <div className="shift-grid">
                 {SHIFT_OPTIONS.map((shift) => {
                   const selected = selectedCodes.includes(shift.code);
+                  const selectedShift = selectedShifts.find((item) => item.code === shift.code);
                   return (
                     <button
                       type="button"
@@ -1496,8 +1537,8 @@ export default function Home() {
                     >
                       <span className="shift-code">{shift.code}</span>
                       <div className="shift-info">
-                        <span className="shift-time">{shift.hours ? `${shift.start}:00 – ${shift.end}:00` : "Ngày nghỉ"}</span>
-                        <span className="shift-hours">{shift.hours} giờ</span>
+                        <span className="shift-time">{shift.hours ? selectedShift?.valid ? `${formatWorkTime(selectedShift.start)} – ${formatWorkTime(selectedShift.end)}` : `${shift.start}:00 – ${shift.end}:00` : "Ngày nghỉ"}</span>
+                        <span className="shift-hours">{selectedShift ? selectedShift.valid ? `${selectedShift.hours} giờ` : "Kiểm tra giờ" : `${shift.hours} giờ`}</span>
                       </div>
                       <span className="shift-check">{selected && <Check size={13} strokeWidth={3} />}</span>
                     </button>
@@ -1524,7 +1565,7 @@ export default function Home() {
                 <div className="field-block actual-times-block">
                   <div>
                     <span className="field-label">Giờ làm thực tế</span>
-                    <span className="field-hint actual-times-hint">Chỉnh khung giờ thực tế; giờ làm thêm sẽ nối tiếp vào giờ tan của ca cuối.</span>
+                    <span className="field-hint actual-times-hint">Nhập số giờ thực tế hoặc chỉnh giờ vào, giờ tan. Hai cách sẽ tự cập nhật lẫn nhau.</span>
                   </div>
                   <div className="actual-time-list">
                     {selectedShifts.filter((shift) => shift.code !== "O").map((shift) => {
@@ -1538,18 +1579,22 @@ export default function Home() {
                           <strong className="actual-time-code">{shift.code}</strong>
                           <label className="actual-time-field" htmlFor={`shift-start-${shift.code}`}>
                             <span>Giờ vào</span>
-                            <div className="input-wrap actual-time-input"><input id={`shift-start-${shift.code}`} type="time" step="1800" value={draft.start} onChange={(event) => setShiftTimeDrafts((current) => ({ ...current, [shift.code]: { ...draft, start: event.target.value } }))} /></div>
+                            <div className="input-wrap actual-time-input"><input id={`shift-start-${shift.code}`} type="time" step="1800" value={draft.start} onChange={(event) => updateShiftTime(shift.code, "start", event.target.value)} /></div>
                           </label>
                           <label className="actual-time-field" htmlFor={`shift-end-${shift.code}`}>
                             <span>Giờ tan</span>
-                            <div className="input-wrap actual-time-input"><input id={`shift-end-${shift.code}`} type="time" step="1800" value={draft.end} onChange={(event) => setShiftTimeDrafts((current) => ({ ...current, [shift.code]: { ...draft, end: event.target.value } }))} /></div>
+                            <div className="input-wrap actual-time-input"><input id={`shift-end-${shift.code}`} type="time" step="1800" value={draft.end} onChange={(event) => updateShiftTime(shift.code, "end", event.target.value)} /></div>
                           </label>
-                          <span className="actual-time-duration">{shift.valid && validExtraHours ? `${hoursLabel(shift.hours + (shift.code === latestSelectedShift?.code ? parsedExtraHours : 0))} · tan ${formatWorkTime(shift.end + (shift.code === latestSelectedShift?.code ? parsedExtraHours : 0))}` : "Kiểm tra giờ"}</span>
+                          <label className="actual-time-field" htmlFor={`shift-hours-${shift.code}`}>
+                            <span>Số giờ</span>
+                            <div className="input-wrap actual-time-input"><input id={`shift-hours-${shift.code}`} type="number" min="0.5" max={Number.isFinite(shift.start) ? 24 - shift.start : undefined} step="0.5" value={shiftDurationDrafts[shift.code] ?? (shift.valid ? String(shift.hours) : "")} onChange={(event) => updateShiftDuration(shift.code, event.target.value)} /></div>
+                          </label>
+                          <span className="actual-time-duration">{shift.valid && validExtraHours ? `Tan ${formatWorkTime(shift.end + (shift.code === latestSelectedShift?.code ? parsedExtraHours : 0))}${shift.code === latestSelectedShift?.code && parsedExtraHours > 0 ? ` · thêm ${parsedExtraHours} giờ` : ""}` : "Kiểm tra giờ"}</span>
                         </div>
                       );
                     })}
                   </div>
-                  <span className="field-hint">Ví dụ: chọn thêm 0,5 giờ cho ca A sẽ hiện giờ tan 12:30; ca C vào sớm thì sửa giờ vào thành 16:00.</span>
+                  <span className="field-hint">Ví dụ: ca A làm 5 tiếng thì nhập 5 ở cột “Số giờ”; giờ tan sẽ tự thành 13:00 nếu vào lúc 8:00.</span>
                 </div>
               )}
 
@@ -1789,7 +1834,7 @@ export default function Home() {
                             <tr className={!record ? "sheet-row-empty" : ""} key={date}>
                               <td><button className="sheet-date-button" type="button" onClick={() => { setSelectedDate(date); setActiveTab("entry"); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{dateLabel(date)}</button></td>
                               <td className="sheet-weekday">{weekday}</td>
-                              <td>
+                              <td className="sheet-editable-cell">
                                 <input
                                   className="sheet-cell-input sheet-shift-input"
                                   type="text"
@@ -1805,7 +1850,7 @@ export default function Home() {
                                 {record && record.totalHours > 0 && <small className="sheet-cell-detail">{shiftTimeSummary(record)}{(record.extraHours ?? 0) > 0 ? ` · +${record.extraHours} giờ thêm` : ""}</small>}
                               </td>
                               <td className="sheet-number">{record ? record.totalHours.toLocaleString("vi-VN") : "—"}</td>
-                              <td className="sheet-number">
+                              <td className="sheet-number sheet-editable-cell">
                                 <input
                                   className="sheet-cell-input sheet-money-input"
                                   type="number"
@@ -1819,7 +1864,7 @@ export default function Home() {
                                   onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
                                 />
                               </td>
-                              <td className="sheet-number">
+                              <td className={isRateEntry ? "sheet-number sheet-editable-cell" : "sheet-number"}>
                                 {isRateEntry ? (
                                   <input
                                     className="sheet-cell-input sheet-money-input"
