@@ -52,7 +52,7 @@ type WeeklySummary = {
 
 type MonthlyAttendanceEntry = AttendanceEntry;
 type ShiftTimeDraft = { start: string; end: string };
-type SheetDraft = { shifts: string; actualPay: string; weeklyRate: string };
+type SheetDraft = { shifts: string; hours: string; actualPay: string; weeklyRate: string };
 type SheetEditableField = keyof SheetDraft;
 type SheetSaveFeedback = { status: "dirty" | "saving" | "saved" | "error"; error?: string };
 type SignedInAccount = { id: string; displayName: string; phone: string; email: string; role: "admin" | "user" };
@@ -101,6 +101,31 @@ function actualShifts(record: AttendanceEntry) {
     lastShift.end += extraHours;
   }
   return shifts.sort((a, b) => a.start - b.start);
+}
+
+function adjustShiftsToTotalHours(shifts: Shift[], totalHours: number) {
+  if (shifts.some((shift) => shift.code === "O")) {
+    return totalHours === 0 ? { shifts, extraHours: 0 } : null;
+  }
+  const adjusted = shifts.map((shift) => ({ ...shift }));
+  if (!adjusted.length || totalHours < adjusted.length * 0.5) return null;
+  const shiftHours = adjusted.reduce((total, shift) => total + shift.end - shift.start, 0);
+  if (totalHours >= shiftHours) {
+    return { shifts: adjusted, extraHours: totalHours - shiftHours };
+  }
+
+  let remainingReduction = shiftHours - totalHours;
+  const latestFirst = adjusted
+    .map((shift, index) => ({ shift, index }))
+    .sort((a, b) => b.shift.end - a.shift.end);
+  for (const { shift, index } of latestFirst) {
+    const duration = shift.end - shift.start;
+    const reduction = Math.min(remainingReduction, Math.max(0, duration - 0.5));
+    adjusted[index] = { ...shift, end: shift.end - reduction, hours: duration - reduction };
+    remainingReduction -= reduction;
+    if (remainingReduction <= 0.001) break;
+  }
+  return remainingReduction > 0.001 ? null : { shifts: adjusted, extraHours: 0 };
 }
 
 function shiftTimeSummary(record: AttendanceEntry) {
@@ -426,6 +451,7 @@ export default function Home() {
   function sheetDraftFor(record: MonthlyAttendanceEntry | undefined, weeklyRate: number | null): SheetDraft {
     return {
       shifts: record?.shifts.map((shift) => shift.code).join(", ") ?? "",
+      hours: record ? String(record.totalHours) : "",
       actualPay: record?.actualPay == null ? "" : String(record.actualPay),
       weeklyRate: weeklyRate == null ? "" : String(weeklyRate),
     };
@@ -455,8 +481,9 @@ export default function Home() {
     const key = sheetKey(date);
     const draft = sheetDrafts[key] ?? sheetDraftFor(record, weeklyRate);
     const baseline = sheetDraftFor(record, weeklyRate);
-    if (draft.shifts === baseline.shifts && draft.actualPay === baseline.actualPay && !sheetSaveQueues.current.has(key)) {
+    if (draft.shifts === baseline.shifts && draft.hours === baseline.hours && draft.actualPay === baseline.actualPay && !sheetSaveQueues.current.has(key)) {
       setSheetFieldFeedback(date, "shifts", { status: "saved" });
+      setSheetFieldFeedback(date, "hours", { status: "saved" });
       setSheetFieldFeedback(date, "actualPay", { status: "saved" });
       return;
     }
@@ -465,6 +492,8 @@ export default function Home() {
       const codes = draft.shifts.trim()
         ? draft.shifts.toUpperCase().split(/[\s,+·]+/).filter(Boolean)
         : [];
+      const hoursWasEdited = draft.hours !== baseline.hours;
+      const parsedHours = draft.hours.trim() === "" ? Number.NaN : Number(draft.hours);
       const parsedRate = draft.actualPay.trim() === "" ? null : Number(draft.actualPay);
       if (codes.some((code) => !isShiftCode(code)) || new Set(codes).size !== codes.length) {
         setSheetFieldFeedback(date, "shifts", { status: "error", error: "Ca không hợp lệ; nhập mã như A, B hoặc để trống để xóa ngày" });
@@ -478,6 +507,10 @@ export default function Home() {
         setSheetFieldFeedback(date, "actualPay", { status: "error", error: "Mức riêng phải là số không âm" });
         return;
       }
+      if (hoursWasEdited && codes.length && (!Number.isFinite(parsedHours) || parsedHours < 0 || parsedHours > 14 || !Number.isInteger(parsedHours * 2))) {
+        setSheetFieldFeedback(date, "hours", { status: "error", error: "Giờ làm phải từ 0 đến 14, theo bước 0,5 giờ" });
+        return;
+      }
       if (!codes.length && !record) {
         if (draft.actualPay.trim()) {
           setSheetFieldFeedback(date, "actualPay", { status: "error", error: "Nhập ca làm trước khi lưu mức riêng" });
@@ -486,6 +519,7 @@ export default function Home() {
       }
 
       setSheetFieldFeedback(date, "shifts", { status: "saving" });
+      setSheetFieldFeedback(date, "hours", { status: "saving" });
       setSheetFieldFeedback(date, "actualPay", { status: "saving" });
       try {
         let savedRecord: MonthlyAttendanceEntry | null = null;
@@ -509,10 +543,20 @@ export default function Home() {
             const option = SHIFT_OPTIONS.find((shift) => shift.code === code)!;
             return { code: option.code, start: option.start, end: option.end, hours: option.hours };
           });
-          const extraHours = codes.includes("O") ? 0 : record?.extraHours ?? 0;
-          const totalHours = shifts.reduce((total, shift) => total + shift.hours, 0) + extraHours;
+          const defaultExtraHours = codes.includes("O") ? 0 : record?.extraHours ?? 0;
+          const defaultTotalHours = shifts.reduce((total, shift) => total + shift.hours, 0) + defaultExtraHours;
+          const adjusted = hoursWasEdited
+            ? adjustShiftsToTotalHours(shifts, parsedHours)
+            : { shifts, extraHours: defaultExtraHours };
+          if (!adjusted) {
+            setSheetFieldFeedback(date, "hours", { status: "error", error: "Số giờ không khớp với các ca đã chọn" });
+            return;
+          }
+          const savedShifts = adjusted.shifts;
+          const extraHours = adjusted.extraHours;
+          const totalHours = hoursWasEdited ? parsedHours : defaultTotalHours;
           if (totalHours > 14) {
-            setSheetFieldFeedback(date, "shifts", { status: "error", error: "Tổng giờ làm trong một ngày không được vượt quá 14 tiếng" });
+            setSheetFieldFeedback(date, hoursWasEdited ? "hours" : "shifts", { status: "error", error: "Tổng giờ làm trong một ngày không được vượt quá 14 tiếng" });
             return;
           }
           const response = await fetch("/api/attendance", {
@@ -522,7 +566,7 @@ export default function Home() {
               timesheetId: selectedTimesheet?.id,
               employeeName: employeeName.trim() || "Thanh Phong",
               date,
-              shifts,
+              shifts: savedShifts,
               coworkers: record?.coworkers ?? [],
               extraHours,
               actualPay: parsedRate,
@@ -542,17 +586,19 @@ export default function Home() {
           });
         }
         setSheetDrafts((current) => {
-          if (current[key]?.shifts !== draft.shifts || current[key]?.actualPay !== draft.actualPay) return current;
+          if (current[key]?.shifts !== draft.shifts || current[key]?.hours !== draft.hours || current[key]?.actualPay !== draft.actualPay) return current;
           return {
             ...current,
             [key]: {
               ...current[key],
               shifts: savedRecord?.shifts.map((shift) => shift.code).join(", ") ?? "",
+              hours: savedRecord ? String(savedRecord.totalHours) : "",
               actualPay: savedRecord?.actualPay == null ? "" : String(savedRecord.actualPay),
             },
           };
         });
         setSheetFieldFeedback(date, "shifts", { status: "saved" });
+        setSheetFieldFeedback(date, "hours", { status: "saved" });
         setSheetFieldFeedback(date, "actualPay", { status: "saved" });
         if (isCurrentSheetDate(date)) {
           try {
@@ -564,6 +610,7 @@ export default function Home() {
       } catch (saveError) {
         const message = saveError instanceof Error ? saveError.message : "Không lưu được dữ liệu ngày";
         setSheetFieldFeedback(date, "shifts", { status: "error", error: message });
+        setSheetFieldFeedback(date, "hours", { status: "error", error: message });
         setSheetFieldFeedback(date, "actualPay", { status: "error", error: message });
       }
     });
@@ -1849,7 +1896,23 @@ export default function Home() {
                                 />
                                 {record && record.totalHours > 0 && <small className="sheet-cell-detail">{shiftTimeSummary(record)}{(record.extraHours ?? 0) > 0 ? ` · +${record.extraHours} giờ thêm` : ""}</small>}
                               </td>
-                              <td className="sheet-number">{record ? record.totalHours.toLocaleString("vi-VN") : "—"}</td>
+                              <td className={record ? "sheet-number sheet-editable-cell" : "sheet-number"}>
+                                {record ? (
+                                  <input
+                                    className="sheet-cell-input sheet-money-input"
+                                    type="number"
+                                    min={record.shifts.some((shift) => shift.code === "O") ? 0 : 0.5}
+                                    max="14"
+                                    step="0.5"
+                                    aria-label={`Số giờ làm ngày ${dateLabel(date)}`}
+                                    title="Nhập giờ thực tế; thay đổi được tự lưu khi rời ô"
+                                    value={draft.hours}
+                                    onChange={(event) => updateSheetDraft(date, record, dayRate, "hours", event.target.value)}
+                                    onBlur={() => saveSheetAttendance(date, record, dayRate)}
+                                    onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                  />
+                                ) : "—"}
+                              </td>
                               <td className="sheet-number sheet-editable-cell">
                                 <input
                                   className="sheet-cell-input sheet-money-input"
