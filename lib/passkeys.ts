@@ -100,14 +100,20 @@ export async function consumePasskeyChallenge(purpose: PasskeyChallengePurpose) 
       || typeof value.expiresAt !== "number"
       || value.expiresAt <= Date.now()
     ) return null;
+    const verifiedChallenge: ChallengePayload = {
+      accountId: value.accountId,
+      challenge: value.challenge,
+      purpose: value.purpose,
+      expiresAt: value.expiresAt,
+    };
     const consumed = isSupabaseConfigured()
       ? (await consumeSupabasePasskeyChallenge({
-        challenge: value.challenge,
-        accountId: value.accountId,
+        challenge: verifiedChallenge.challenge,
+        accountId: verifiedChallenge.accountId,
         purpose,
       })).length > 0
-      : await consumeMongoPasskeyChallenge(value);
-    return consumed ? value as ChallengePayload : null;
+      : await consumeMongoPasskeyChallenge(verifiedChallenge);
+    return consumed ? verifiedChallenge : null;
   } catch {
     return null;
   }
