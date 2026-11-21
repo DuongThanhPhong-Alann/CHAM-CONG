@@ -156,7 +156,9 @@ async function requestSupabase<T>(table: string, params: URLSearchParams, option
 }
 
 function quotedFilter(value: string) {
-  return `eq."${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+  const escaped = value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+  const needsQuotes = /[,.:()"\\]/.test(value);
+  return `eq.${needsQuotes ? `"${escaped}"` : escaped}`;
 }
 
 function addTenantFilters(params: URLSearchParams, filter: { ownerId: string; timesheetId: string; employeeName: string }) {
