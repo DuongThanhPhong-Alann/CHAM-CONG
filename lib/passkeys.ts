@@ -7,6 +7,7 @@ import {
   consumeSupabasePasskeyChallenge,
   findSupabaseAccountById,
   findSupabaseAccountByIdentifier,
+  findSupabaseAccountByPasskeyCredentialId,
   isSupabaseConfigured,
   readWithSupabaseFallback,
   saveSupabasePasskeyChallenge,
@@ -28,7 +29,7 @@ export type PasskeyAccount = {
 };
 
 type ChallengePayload = {
-  accountId: string;
+  accountId: string | null;
   challenge: string;
   purpose: PasskeyChallengePurpose;
   expiresAt: number;
@@ -48,7 +49,7 @@ function isChallengePurpose(value: unknown): value is PasskeyChallengePurpose {
   return value === "register" || value === "authenticate";
 }
 
-export async function setPasskeyChallenge(accountId: string, challenge: string, purpose: PasskeyChallengePurpose) {
+export async function setPasskeyChallenge(accountId: string | null, challenge: string, purpose: PasskeyChallengePurpose) {
   const expiresAt = new Date(Date.now() + PASSKEY_CHALLENGE_SECONDS * 1000);
   const challengeRecord = { challenge, accountId, purpose, expiresAt };
   if (isSupabaseConfigured()) {
@@ -93,10 +94,11 @@ export async function consumePasskeyChallenge(purpose: PasskeyChallengePurpose) 
   try {
     const value = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Partial<ChallengePayload>;
     if (
-      typeof value.accountId !== "string"
+      (typeof value.accountId !== "string" && value.accountId !== null)
       || typeof value.challenge !== "string"
       || !isChallengePurpose(value.purpose)
       || value.purpose !== purpose
+      || (value.purpose === "register" && typeof value.accountId !== "string")
       || typeof value.expiresAt !== "number"
       || value.expiresAt <= Date.now()
     ) return null;
@@ -175,6 +177,18 @@ export async function findPasskeyAccountByIdentifier(identifier: string) {
   return readWithSupabaseFallback<PasskeyAccount | null>(
     "passkey login account lookup",
     async () => (await findSupabaseAccountByIdentifier(identifier)) ?? await readMongo(),
+    readMongo,
+  );
+}
+
+export async function findPasskeyAccountByCredentialId(credentialId: string) {
+  const readMongo = async () => {
+    await connectToDatabase();
+    return await Account.findOne({ "passkeys.id": credentialId }).lean() as PasskeyAccount | null;
+  };
+  return readWithSupabaseFallback<PasskeyAccount | null>(
+    "passkey credential lookup",
+    async () => (await findSupabaseAccountByPasskeyCredentialId(credentialId)) ?? await readMongo(),
     readMongo,
   );
 }

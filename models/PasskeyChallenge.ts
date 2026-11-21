@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose";
 export type PasskeyChallengePurpose = "register" | "authenticate";
 export type PasskeyChallengeRecord = {
   challenge: string;
-  accountId: string;
+  accountId: string | null;
   purpose: PasskeyChallengePurpose;
   expiresAt: Date;
 };
@@ -11,7 +11,7 @@ export type PasskeyChallengeRecord = {
 const PasskeyChallengeSchema = new Schema(
   {
     _id: { type: String, required: true },
-    accountId: { type: String, required: true },
+    accountId: { type: String, default: null },
     purpose: { type: String, enum: ["register", "authenticate"], required: true },
     expiresAt: { type: Date, required: true, expires: 0 },
   },

@@ -3,11 +3,14 @@ alter table public.app_accounts
 
 create table if not exists public.app_passkey_challenges (
   challenge text primary key,
-  account_id text not null references public.app_accounts(id) on delete cascade,
+  account_id text references public.app_accounts(id) on delete cascade,
   purpose text not null check (purpose in ('register', 'authenticate')),
   expires_at timestamptz not null,
   created_at timestamptz not null default now()
 );
+
+alter table public.app_passkey_challenges
+  alter column account_id drop not null;
 
 create index if not exists app_passkey_challenges_expires_at_idx
   on public.app_passkey_challenges (expires_at);

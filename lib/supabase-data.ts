@@ -282,6 +282,16 @@ export async function findSupabaseAccountByIdentifier(identifier: string): Promi
   return rows[0] ? toAccountRecord(rows[0]) : null;
 }
 
+export async function findSupabaseAccountByPasskeyCredentialId(credentialId: string): Promise<AccountRecord | null> {
+  const params = new URLSearchParams({
+    select: ACCOUNT_COLUMNS,
+    passkeys: `cs.${JSON.stringify([{ id: credentialId }])}`,
+    limit: "1",
+  });
+  const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params);
+  return rows[0] ? toAccountRecord(rows[0]) : null;
+}
+
 export async function findSupabaseAccounts(): Promise<AccountRecord[]> {
   const params = new URLSearchParams({ select: ACCOUNT_COLUMNS, order: "created_at.asc" });
   const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params);
@@ -327,7 +337,7 @@ export async function consumeSupabasePasskeyChallenge(record: Pick<PasskeyChalle
   const params = new URLSearchParams({
     select: "challenge",
     challenge: quotedFilter(record.challenge),
-    account_id: quotedFilter(record.accountId),
+    account_id: record.accountId === null ? "is.null" : quotedFilter(record.accountId),
     purpose: quotedFilter(record.purpose),
     expires_at: `gt.${timestamp()}`,
   });

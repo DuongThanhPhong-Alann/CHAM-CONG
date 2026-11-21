@@ -1052,10 +1052,6 @@ export default function Home() {
   }
 
   async function signInWithPasskey() {
-    if (!loginIdentifier.trim()) {
-      setAuthError("Nhập số điện thoại hoặc email trước khi dùng Face ID");
-      return;
-    }
     if (typeof window === "undefined" || !window.PublicKeyCredential || !navigator.credentials) {
       setAuthError("Trình duyệt hoặc thiết bị này chưa hỗ trợ Face ID/passkey");
       return;
@@ -1068,7 +1064,6 @@ export default function Home() {
       const optionsResponse = await fetch("/api/auth/passkeys/authenticate/options", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: loginIdentifier }),
       });
       const optionsData = await optionsResponse.json();
       if (!optionsResponse.ok) throw new Error(optionsData.error || "Không thể bắt đầu đăng nhập Face ID");
@@ -1121,6 +1116,8 @@ export default function Home() {
       const name = passkeyError && typeof passkeyError === "object" && "name" in passkeyError ? String(passkeyError.name) : "";
       setAuthError(name === "NotAllowedError"
         ? "Bạn đã hủy hoặc chưa hoàn tất đăng ký Face ID"
+        : name === "InvalidStateError"
+          ? "Face ID trên thiết bị này đã được liên kết với tài khoản. Hãy đăng xuất rồi đăng nhập bằng Face ID."
         : passkeyError instanceof Error ? passkeyError.message : "Không thể bật Face ID lúc này");
     } finally {
       setAuthBusy(false);
@@ -1284,10 +1281,10 @@ export default function Home() {
                 {authError && <div className="access-error" role="alert">{authError}</div>}
                 <button className="primary-button access-submit" type="submit" disabled={authBusy}>{authBusy ? "Đang đăng nhập…" : "Đăng nhập"}</button>
                 <div className="passkey-divider"><span>hoặc đăng nhập nhanh</span></div>
-                <button className="passkey-button" type="button" onClick={signInWithPasskey} disabled={authBusy || !loginIdentifier.trim()}>
+                <button className="passkey-button" type="button" onClick={signInWithPasskey} disabled={authBusy}>
                   <Fingerprint size={18} /> {authBusy ? "Đang xác thực…" : "Đăng nhập bằng Face ID"}
                 </button>
-                <p className="passkey-hint">Nhập số điện thoại hoặc email. Chỉ dùng được nếu tài khoản đã bật Face ID.</p>
+                <p className="passkey-hint">Chạm để tiếp tục; iPhone sẽ yêu cầu xác thực bằng Face ID.</p>
               </form>
             </>
           ) : authView === "sheets" ? (
