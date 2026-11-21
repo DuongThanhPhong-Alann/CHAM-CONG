@@ -7,13 +7,17 @@ Danh sách bảng chấm công và dữ liệu xác thực một lần khi đăn
 ## Cài đặt
 
 1. Trước khi kích hoạt bảng tài khoản Supabase, đăng nhập app hiện tại một lần nếu MongoDB chưa hoàn tất chuyển dữ liệu cũ sang tài khoản/bảng công. Bước này chạy `bootstrapAdminAndMigrate` trên MongoDB.
-2. Tạo project Supabase và chạy nội dung `supabase/migrations/20261121000000_attendance_tables.sql` trong SQL Editor. Nếu đã chạy bản cũ, chạy lại file để tạo thêm bảng `app_accounts`.
+2. Tạo project Supabase và chạy các file migration trong `supabase/migrations/` theo thứ tự. Nếu đã cài Supabase trước đây, chạy thêm `20261121010000_passkeys.sql` để thêm nơi lưu passkey.
 3. Lấy Project URL và **Secret API key** trong Supabase Dashboard, rồi điền vào `.env.local`:
 
    ```env
    SUPABASE_URL=https://your-project.supabase.co
    SUPABASE_SECRET_KEY=sb_secret_...
    ```
+
+   Để dùng Face ID/passkey trên website HTTPS, đặt `WEBAUTHN_RP_ID` là tên miền (ví dụ `chamcong.example.com`) và `WEBAUTHN_ORIGIN` là origin đầy đủ (ví dụ `https://chamcong.example.com`). Khi chạy local, có thể dùng `localhost` và `http://localhost:3000`.
+
+   Máy chủ chạy app cần Node.js 22 trở lên.
 
    Có thể dùng khóa `service_role` cũ bằng `SUPABASE_SERVICE_ROLE_KEY`; khóa mới `sb_secret_...` được khuyến nghị. Các khóa này chỉ được dùng ở máy chủ, không thêm tiền tố `NEXT_PUBLIC_`.
 

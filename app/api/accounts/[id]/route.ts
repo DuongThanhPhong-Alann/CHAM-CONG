@@ -73,6 +73,7 @@ export async function PUT(request: Request, { params }: Context) {
       email,
       passwordHash,
       passwordSalt,
+      passkeys: current.passkeys ?? [],
       role: current.role === "admin" ? "admin" as const : "user" as const,
       createdAt: current.createdAt,
       updatedAt: new Date(),

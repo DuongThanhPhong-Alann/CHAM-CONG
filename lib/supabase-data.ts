@@ -1,4 +1,6 @@
 import { after } from "next/server";
+import type { PasskeyCredentialRecord } from "@/models/Account";
+import type { PasskeyChallengeRecord } from "@/models/PasskeyChallenge";
 
 export type ShiftRecord = {
   code: string;
@@ -40,6 +42,7 @@ export type AccountRecord = {
   email: string;
   passwordHash: string;
   passwordSalt: string;
+  passkeys: PasskeyCredentialRecord[];
   role: "admin" | "user";
   createdAt?: string | Date;
   updatedAt?: string | Date;
@@ -96,6 +99,7 @@ type SupabaseAccountRow = {
   email: string;
   password_hash: string;
   password_salt: string;
+  passkeys: PasskeyCredentialRecord[] | null;
   role: "admin" | "user";
   created_at?: string;
   updated_at?: string;
@@ -103,7 +107,7 @@ type SupabaseAccountRow = {
 
 const ATTENDANCE_COLUMNS = "id,owner_id,timesheet_id,employee_name,date,shifts,coworkers,extra_hours,total_hours,actual_pay,created_at,updated_at";
 const WEEKLY_PAY_COLUMNS = "id,owner_id,timesheet_id,employee_name,week_start,hourly_rate,created_at,updated_at";
-const ACCOUNT_COLUMNS = "id,display_name,phone,email,password_hash,password_salt,role,created_at,updated_at";
+const ACCOUNT_COLUMNS = "id,display_name,phone,email,password_hash,password_salt,passkeys,role,created_at,updated_at";
 const ATTENDANCE_CONFLICT = "owner_id,timesheet_id,employee_name,date";
 const WEEKLY_PAY_CONFLICT = "owner_id,timesheet_id,employee_name,week_start";
 const SUPABASE_TIMEOUT_MS = 5000;
@@ -123,7 +127,7 @@ export function isSupabaseConfigured() {
 }
 
 async function requestSupabase<T>(table: string, params: URLSearchParams, options: {
-  method?: "GET" | "POST" | "DELETE";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   prefer?: string;
 } = {}): Promise<T> {
@@ -205,6 +209,7 @@ function toAccountRecord(row: SupabaseAccountRow): AccountRecord {
     email: row.email,
     passwordHash: row.password_hash,
     passwordSalt: row.password_salt,
+    passkeys: row.passkeys ?? [],
     role: row.role,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -253,6 +258,7 @@ function toSupabaseAccount(record: AccountRecord) {
     email: record.email,
     password_hash: record.passwordHash,
     password_salt: record.passwordSalt,
+    passkeys: record.passkeys ?? [],
     role: record.role,
     ...(record.createdAt ? { created_at: timestamp(record.createdAt) } : {}),
     updated_at: timestamp(record.updatedAt),
@@ -290,6 +296,45 @@ export async function upsertSupabaseAccount(record: AccountRecord) {
     prefer: "resolution=merge-duplicates,return=representation",
   });
   return rows[0] ? toAccountRecord(rows[0]) : undefined;
+}
+
+export async function updateSupabaseAccountPasskeys(id: string, passkeys: PasskeyCredentialRecord[]) {
+  const params = new URLSearchParams({ id: quotedFilter(id), select: "id" });
+  return requestSupabase<SupabaseAccountRow[]>("app_accounts", params, {
+    method: "PATCH",
+    body: { passkeys, updated_at: timestamp() },
+    prefer: "return=representation",
+  });
+}
+
+export async function saveSupabasePasskeyChallenge(record: PasskeyChallengeRecord) {
+  const expired = new URLSearchParams({ expires_at: `lt.${timestamp()}` });
+  await requestSupabase<void>("app_passkey_challenges", expired, { method: "DELETE" });
+  const params = new URLSearchParams({ on_conflict: "challenge" });
+  await requestSupabase<void>("app_passkey_challenges", params, {
+    method: "POST",
+    body: {
+      challenge: record.challenge,
+      account_id: record.accountId,
+      purpose: record.purpose,
+      expires_at: timestamp(record.expiresAt),
+    },
+    prefer: "resolution=merge-duplicates,return=minimal",
+  });
+}
+
+export async function consumeSupabasePasskeyChallenge(record: Pick<PasskeyChallengeRecord, "challenge" | "accountId" | "purpose">) {
+  const params = new URLSearchParams({
+    select: "challenge",
+    challenge: quotedFilter(record.challenge),
+    account_id: quotedFilter(record.accountId),
+    purpose: quotedFilter(record.purpose),
+    expires_at: `gt.${timestamp()}`,
+  });
+  return requestSupabase<Array<{ challenge: string }>>("app_passkey_challenges", params, {
+    method: "DELETE",
+    prefer: "return=representation",
+  });
 }
 
 export async function deleteSupabaseAccount(id: string) {

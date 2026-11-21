@@ -6,7 +6,9 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const account = await getAuthenticatedAccount();
-    return NextResponse.json({ account: account?.public ?? null }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      account: account ? { ...account.public, hasPasskey: account.hasPasskey } : null,
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể khởi tạo đăng nhập";
     return NextResponse.json({ error: message }, { status: 503, headers: { "Cache-Control": "no-store" } });

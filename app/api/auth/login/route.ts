@@ -29,7 +29,8 @@ export async function POST(request: Request) {
     }
     const publicAccount = toPublicAccount(account);
     await setSessionCookie(publicAccount.id);
-    rememberAuthenticatedAccount(publicAccount);
+    const hasPasskey = Array.isArray(account.passkeys) && account.passkeys.length > 0;
+    rememberAuthenticatedAccount(publicAccount, hasPasskey);
     after(async () => {
       try {
         await bootstrapAdminAndMigrate();
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
         console.warn("[auth] MongoDB bootstrap or legacy migration failed after Supabase login", error);
       }
     });
-    return NextResponse.json({ account: publicAccount }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ account: { ...publicAccount, hasPasskey } }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể đăng nhập";
     return NextResponse.json({ error: message }, { status: 503 });

@@ -54,6 +54,7 @@ try {
     email: record.email,
     password_hash: record.passwordHash,
     password_salt: record.passwordSalt,
+    passkeys: record.passkeys ?? [],
     role: record.role,
     created_at: record.createdAt?.toISOString?.() ?? new Date().toISOString(),
     updated_at: record.updatedAt?.toISOString?.() ?? new Date().toISOString(),

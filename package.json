@@ -9,7 +9,12 @@
     "lint": "eslint .",
     "migrate:supabase": "node scripts/migrate-supabase.mjs"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
+    "@simplewebauthn/server": "^14.1.0",
     "lucide-react": "^1.66.0",
     "mongoose": "^9.11.4",
     "next": "^16.4.5",

@@ -49,6 +49,7 @@ export async function POST(request: Request) {
       email: data.email,
       passwordHash: credentials.hash,
       passwordSalt: credentials.salt,
+      passkeys: [],
       role: "user" as const,
       updatedAt: new Date(),
     };

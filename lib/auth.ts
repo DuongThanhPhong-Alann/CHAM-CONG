@@ -28,6 +28,7 @@ type AuthenticatedAccount = {
   phone: string;
   email: string;
   role: string;
+  hasPasskey: boolean;
   public: PublicAccount;
   [key: string]: unknown;
 };
@@ -128,9 +129,9 @@ export function invalidateAuthenticatedAccount(accountId?: string) {
   }
 }
 
-export function rememberAuthenticatedAccount(account: PublicAccount) {
+export function rememberAuthenticatedAccount(account: PublicAccount, hasPasskey = false) {
   authState.accountCache?.set(account.id, {
-    account: { ...account, _id: account.id, public: account },
+    account: { ...account, _id: account.id, hasPasskey, public: account },
     expiresAt: Date.now() + AUTH_CACHE_MS,
   });
 }
@@ -169,6 +170,7 @@ export async function getAuthenticatedAccount(): Promise<AuthenticatedAccount | 
       phone: account.phone,
       email: account.email,
       role: account.role,
+      hasPasskey: Array.isArray(account.passkeys) && account.passkeys.length > 0,
       public: toPublicAccount(account),
     } as AuthenticatedAccount;
     authState.accountCache?.set(accountId, { account: authenticatedAccount, expiresAt: Date.now() + AUTH_CACHE_MS });

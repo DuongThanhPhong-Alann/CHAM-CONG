@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type TouchEvent as ReactTouchEvent } from "react";
 import Image from "next/image";
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import {
   ArrowDownToLine,
   ArrowLeft,
@@ -13,6 +14,7 @@ import {
   Clock3,
   Copy,
   FileText,
+  Fingerprint,
   Leaf,
   Menu,
   Plus,
@@ -55,7 +57,7 @@ type ShiftTimeDraft = { start: string; end: string };
 type SheetDraft = { shifts: string; hours: string; actualPay: string; weeklyRate: string };
 type SheetEditableField = keyof SheetDraft;
 type SheetSaveFeedback = { status: "dirty" | "saving" | "saved" | "error"; error?: string };
-type SignedInAccount = { id: string; displayName: string; phone: string; email: string; role: "admin" | "user" };
+type SignedInAccount = { id: string; displayName: string; phone: string; email: string; role: "admin" | "user"; hasPasskey?: boolean };
 type TimesheetOption = { id: string; name: string; logicKey: string };
 type ManagedAccount = SignedInAccount;
 
@@ -214,6 +216,7 @@ export default function Home() {
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [newTimesheetName, setNewTimesheetName] = useState("");
   const [managedAccounts, setManagedAccounts] = useState<ManagedAccount[]>([]);
@@ -1017,6 +1020,7 @@ export default function Home() {
   async function finishSignIn(account: SignedInAccount) {
     setAuthAccount(account);
     setAuthError("");
+    setAuthNotice("");
     try {
       await loadTimesheetOptions();
       setAuthView("sheets");
@@ -1030,6 +1034,7 @@ export default function Home() {
     event.preventDefault();
     setAuthBusy(true);
     setAuthError("");
+    setAuthNotice("");
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -1046,12 +1051,89 @@ export default function Home() {
     }
   }
 
+  async function signInWithPasskey() {
+    if (!loginIdentifier.trim()) {
+      setAuthError("Nhập số điện thoại hoặc email trước khi dùng Face ID");
+      return;
+    }
+    if (typeof window === "undefined" || !window.PublicKeyCredential || !navigator.credentials) {
+      setAuthError("Trình duyệt hoặc thiết bị này chưa hỗ trợ Face ID/passkey");
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const optionsResponse = await fetch("/api/auth/passkeys/authenticate/options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: loginIdentifier }),
+      });
+      const optionsData = await optionsResponse.json();
+      if (!optionsResponse.ok) throw new Error(optionsData.error || "Không thể bắt đầu đăng nhập Face ID");
+
+      const credential = await startAuthentication({ optionsJSON: optionsData.options });
+      const verifyResponse = await fetch("/api/auth/passkeys/authenticate/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credential),
+      });
+      const verifyData = await verifyResponse.json();
+      if (!verifyResponse.ok) throw new Error(verifyData.error || "Đăng nhập bằng Face ID không thành công");
+      await finishSignIn(verifyData.account as SignedInAccount);
+    } catch (passkeyError) {
+      const name = passkeyError && typeof passkeyError === "object" && "name" in passkeyError ? String(passkeyError.name) : "";
+      setAuthError(name === "NotAllowedError"
+        ? "Bạn đã hủy hoặc chưa hoàn tất xác thực Face ID"
+        : passkeyError instanceof Error ? passkeyError.message : "Đăng nhập bằng Face ID không thành công");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function registerPasskey() {
+    if (typeof window === "undefined" || !window.PublicKeyCredential || !navigator.credentials) {
+      setAuthError("Trình duyệt hoặc thiết bị này chưa hỗ trợ Face ID/passkey");
+      return;
+    }
+
+    setAuthBusy(true);
+    setAuthError("");
+    setAuthNotice("");
+    try {
+      const optionsResponse = await fetch("/api/auth/passkeys/register/options", { method: "POST" });
+      const optionsData = await optionsResponse.json();
+      if (!optionsResponse.ok) throw new Error(optionsData.error || "Không thể bắt đầu đăng ký Face ID");
+
+      const credential = await startRegistration({ optionsJSON: optionsData.options });
+      const verifyResponse = await fetch("/api/auth/passkeys/register/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credential),
+      });
+      const verifyData = await verifyResponse.json();
+      if (!verifyResponse.ok) throw new Error(verifyData.error || "Không thể hoàn tất đăng ký Face ID");
+
+      setAuthAccount((account) => account ? { ...account, hasPasskey: true } : account);
+      setAuthNotice("Đã bật đăng nhập Face ID trên thiết bị này");
+    } catch (passkeyError) {
+      const name = passkeyError && typeof passkeyError === "object" && "name" in passkeyError ? String(passkeyError.name) : "";
+      setAuthError(name === "NotAllowedError"
+        ? "Bạn đã hủy hoặc chưa hoàn tất đăng ký Face ID"
+        : passkeyError instanceof Error ? passkeyError.message : "Không thể bật Face ID lúc này");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuthAccount(null);
     setSelectedTimesheet(null);
     setTimesheets([]);
     setAuthError("");
+    setAuthNotice("");
     setAuthView("login");
   }
 
@@ -1201,6 +1283,11 @@ export default function Home() {
                 <label>Mật khẩu<input autoComplete="current-password" type="password" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="Nhập mật khẩu" required /></label>
                 {authError && <div className="access-error" role="alert">{authError}</div>}
                 <button className="primary-button access-submit" type="submit" disabled={authBusy}>{authBusy ? "Đang đăng nhập…" : "Đăng nhập"}</button>
+                <div className="passkey-divider"><span>hoặc đăng nhập nhanh</span></div>
+                <button className="passkey-button" type="button" onClick={signInWithPasskey} disabled={authBusy || !loginIdentifier.trim()}>
+                  <Fingerprint size={18} /> {authBusy ? "Đang xác thực…" : "Đăng nhập bằng Face ID"}
+                </button>
+                <p className="passkey-hint">Nhập số điện thoại hoặc email. Chỉ dùng được nếu tài khoản đã bật Face ID.</p>
               </form>
             </>
           ) : authView === "sheets" ? (
@@ -1284,7 +1371,11 @@ export default function Home() {
               )}
 
               {authError && <div className="access-error" role="alert">{authError}</div>}
+              {authNotice && <div className="access-notice" role="status">{authNotice}</div>}
               <div className="access-actions">
+                <button className="secondary-button passkey-enable" type="button" onClick={registerPasskey} disabled={authBusy}>
+                  <Fingerprint size={16} /> {authAccount?.hasPasskey ? "Thêm thiết bị Face ID" : "Bật Face ID trên thiết bị này"}
+                </button>
                 {authAccount?.role === "admin" && (
                   <button className="secondary-button" type="button" onClick={openAccountManager} disabled={authBusy}>
                     <UsersRound size={16} /> Quản lý tài khoản
@@ -1298,7 +1389,9 @@ export default function Home() {
               <div className="access-heading"><span className="eyebrow"><UsersRound size={13} /> ADMIN</span><h1>Quản lý tài khoản</h1><p>Chỉ admin mới xem và sửa được danh sách này.</p></div>
               <div className="account-manager-list">{managedAccounts.map((account) => <article className="account-manager-row" key={account.id}><span className="avatar">{account.displayName.slice(0, 1).toUpperCase()}</span><div><strong>{account.displayName}{account.role === "admin" && <small className="admin-badge">ADMIN</small>}</strong><span>{account.phone} · {account.email}</span></div><button type="button" className="secondary-button" onClick={() => beginAccountEdit(account)}>Sửa</button><button type="button" className="danger-button" onClick={() => deleteManagedAccount(account)} disabled={account.id === authAccount?.id}>Xóa</button></article>)}</div>
               <form className="account-edit-form" onSubmit={saveManagedAccount}><h2>{accountEditId ? "Sửa tài khoản" : "Thêm tài khoản"}</h2><div className="account-form-grid"><label>Tên hiển thị<input value={accountDisplayName} onChange={(event) => setAccountDisplayName(event.target.value)} minLength={2} maxLength={80} required /></label><label>Số điện thoại<input value={accountPhone} onChange={(event) => setAccountPhone(event.target.value)} autoComplete="tel" required /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} autoComplete="email" required /></label><label>{accountEditId ? "Mật khẩu mới (để trống nếu giữ nguyên)" : "Mật khẩu (ít nhất 8 ký tự)"}<input type="password" value={accountPassword} onChange={(event) => setAccountPassword(event.target.value)} minLength={accountEditId ? 0 : 8} autoComplete="new-password" required={!accountEditId} /></label></div>{authError && <div className="access-error" role="alert">{authError}</div>}<div className="account-form-actions"><button className="primary-button" type="submit" disabled={authBusy}>{authBusy ? "Đang lưu…" : accountEditId ? "Lưu thay đổi" : "Tạo tài khoản"}</button>{accountEditId && <button className="secondary-button" type="button" onClick={() => { setAccountEditId(""); setAccountDisplayName(""); setAccountPhone(""); setAccountEmail(""); setAccountPassword(""); }}>Hủy sửa</button>}</div></form>
-              <div className="access-actions"><button className="secondary-button" type="button" onClick={() => setAuthView("sheets")}><ArrowLeft size={16} /> Quay lại bảng chấm công</button><button className="text-button" type="button" onClick={signOut}>Đăng xuất</button></div>
+              {authError && <div className="access-error" role="alert">{authError}</div>}
+              {authNotice && <div className="access-notice" role="status">{authNotice}</div>}
+              <div className="access-actions"><button className="secondary-button passkey-enable" type="button" onClick={registerPasskey} disabled={authBusy}><Fingerprint size={16} /> {authAccount?.hasPasskey ? "Thêm thiết bị Face ID" : "Bật Face ID trên thiết bị này"}</button><button className="secondary-button" type="button" onClick={() => setAuthView("sheets")}><ArrowLeft size={16} /> Quay lại bảng chấm công</button><button className="text-button" type="button" onClick={signOut}>Đăng xuất</button></div>
             </>
           )}
         </section>
