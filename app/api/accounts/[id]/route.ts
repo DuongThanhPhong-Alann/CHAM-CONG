@@ -5,6 +5,7 @@ import Account from "@/models/Account";
 import Attendance from "@/models/Attendance";
 import Timesheet from "@/models/Timesheet";
 import WeeklyPay from "@/models/WeeklyPay";
+import { deleteSupabaseAttendanceForOwner, deleteSupabaseWeeklyPayForOwner } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 
@@ -68,13 +69,23 @@ export async function DELETE(_request: Request, { params }: Context) {
       const adminCount = await Account.countDocuments({ role: "admin" });
       if (adminCount <= 1) return NextResponse.json({ error: "Không thể xóa admin cuối cùng" }, { status: 400 });
     }
-    await Promise.all([
-      Attendance.deleteMany({ ownerId: id }),
-      WeeklyPay.deleteMany({ ownerId: id }),
-      Timesheet.deleteMany({ ownerId: id }),
-      Account.deleteOne({ _id: id }),
+    const [mongoCleanup, supabaseCleanup] = await Promise.allSettled([
+      Promise.all([
+        Attendance.deleteMany({ ownerId: id }),
+        WeeklyPay.deleteMany({ ownerId: id }),
+        Timesheet.deleteMany({ ownerId: id }),
+        Account.deleteOne({ _id: id }),
+      ]),
+      Promise.all([
+        deleteSupabaseAttendanceForOwner(id),
+        deleteSupabaseWeeklyPayForOwner(id),
+      ]),
     ]);
-    return NextResponse.json({ ok: true });
+    if (mongoCleanup.status === "rejected") throw mongoCleanup.reason;
+    if (supabaseCleanup.status === "rejected") {
+      console.warn("[storage] Supabase account cleanup failed", supabaseCleanup.reason);
+    }
+    return NextResponse.json({ ok: true, storage: supabaseCleanup.status === "fulfilled" ? "supabase+mongodb" : "mongodb" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa tài khoản";
     return NextResponse.json({ error: message }, { status: 500 });

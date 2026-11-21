@@ -4,6 +4,14 @@ import { localDateString } from "@/lib/dates";
 import { SHIFT_OPTIONS, isShiftCode } from "@/lib/shifts";
 import Attendance from "@/models/Attendance";
 import { authorizeTimesheet } from "@/lib/tenant";
+import {
+  deleteSupabaseAttendance,
+  findSupabaseAttendance,
+  readWithSupabaseFallback,
+  upsertSupabaseAttendance,
+  writeToBoth,
+  type AttendanceRecord,
+} from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 
@@ -39,11 +47,33 @@ export async function POST(request: Request) {
     }
 
     const shift = SHIFT_OPTIONS.find((option) => option.code === shiftCode)!;
-    const existingRecords = await Attendance.find({ ownerId, timesheetId, employeeName, date: { $in: dates } }).lean();
+    const existingRecords = await readWithSupabaseFallback(
+      "bulk attendance lookup",
+      () => findSupabaseAttendance({ ownerId, timesheetId, employeeName, dates }),
+      async () => {
+        const records = await Attendance.find({ ownerId, timesheetId, employeeName, date: { $in: dates } }).lean();
+        return records.map((record) => ({
+          _id: String(record._id),
+          ownerId: String(record.ownerId ?? ownerId),
+          timesheetId: String(record.timesheetId ?? timesheetId),
+          employeeName: record.employeeName,
+          date: record.date,
+          shifts: record.shifts,
+          coworkers: record.coworkers,
+          extraHours: record.extraHours,
+          totalHours: record.totalHours,
+          actualPay: record.actualPay ?? null,
+          createdAt: record.createdAt,
+          updatedAt: record.updatedAt,
+        }));
+      },
+    );
     const existingByDate = new Map(existingRecords.map((record) => [record.date, record] as const));
     let skipped = 0;
     let invalidDate = "";
     const operations: Parameters<typeof Attendance.bulkWrite>[0] = [];
+    const recordsToSave: AttendanceRecord[] = [];
+    const updatedAt = new Date();
     for (const date of dates) {
       const existing = existingByDate.get(date);
       if (existing?.shifts.some((item: { code: string }) => item.code === shift.code)) {
@@ -62,15 +92,40 @@ export async function POST(request: Request) {
           ...existing.shifts.filter((item: { code: string }) => item.code !== "O"),
           { code: shift.code, start: shift.start, end: shift.end, hours: shift.hours },
         ];
+        recordsToSave.push({ ...existing, shifts, extraHours, totalHours, updatedAt });
         operations.push({
           updateOne: {
             filter: { ownerId, timesheetId, employeeName, date },
-            update: { $set: { shifts, extraHours, totalHours } },
+            update: {
+              $set: {
+                shifts,
+                coworkers: existing.coworkers,
+                extraHours,
+                totalHours,
+                actualPay: existing.actualPay,
+              },
+              $setOnInsert: { ownerId, timesheetId, employeeName, date },
+            },
+            upsert: true,
           },
         });
         continue;
       }
 
+      recordsToSave.push({
+        _id: "",
+        ownerId,
+        timesheetId,
+        employeeName,
+        date,
+        shifts: [{ code: shift.code, start: shift.start, end: shift.end, hours: shift.hours }],
+        coworkers: [],
+        extraHours: 0,
+        totalHours: shift.hours,
+        actualPay: null,
+        createdAt: updatedAt,
+        updatedAt,
+      });
       operations.push({
         updateOne: {
           filter: { ownerId, timesheetId, employeeName, date },
@@ -95,8 +150,17 @@ export async function POST(request: Request) {
     if (invalidDate) {
       return NextResponse.json({ error: `Thêm ca ${shift.code} sẽ làm ngày ${invalidDate} vượt quá 14 giờ` }, { status: 400 });
     }
-    if (operations.length > 0) await Attendance.bulkWrite(operations);
-    return NextResponse.json({ added: operations.length, skipped });
+    const saved = operations.length > 0
+      ? await writeToBoth(
+        "bulk attendance save",
+        () => upsertSupabaseAttendance(recordsToSave),
+        async () => {
+          await connectToDatabase();
+          return Attendance.bulkWrite(operations);
+        },
+      )
+      : { storage: "unchanged" };
+    return NextResponse.json({ added: operations.length, skipped, storage: saved.storage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể ghi công nhiều ngày";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -116,8 +180,18 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Tên nhân viên hoặc danh sách ngày chưa hợp lệ" }, { status: 400 });
     }
 
-    const result = await Attendance.deleteMany({ ownerId, timesheetId, employeeName, date: { $in: dates } });
-    return NextResponse.json({ deletedCount: result.deletedCount });
+    const result = await writeToBoth(
+      "bulk attendance delete",
+      () => deleteSupabaseAttendance({ ownerId, timesheetId, employeeName, dates }),
+      async () => {
+        await connectToDatabase();
+        return Attendance.deleteMany({ ownerId, timesheetId, employeeName, date: { $in: dates } });
+      },
+    );
+    const deletedCount = result.mongoResult && typeof result.mongoResult === "object" && "deletedCount" in result.mongoResult
+      ? result.mongoResult.deletedCount
+      : undefined;
+    return NextResponse.json({ deletedCount, storage: result.storage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa công nhiều ngày";
     return NextResponse.json({ error: message }, { status: 500 });

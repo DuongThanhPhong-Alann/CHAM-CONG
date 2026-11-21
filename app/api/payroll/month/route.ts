@@ -4,6 +4,11 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Attendance from "@/models/Attendance";
 import WeeklyPay from "@/models/WeeklyPay";
 import { authorizeTimesheet } from "@/lib/tenant";
+import {
+  findSupabaseAttendance,
+  findSupabaseWeeklyPay,
+  readWithSupabaseFallback,
+} from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 
@@ -31,13 +36,42 @@ export async function GET(request: Request) {
     const lastWeek = mondayOf(lastDate);
 
     const [attendance, weeklyPays] = await Promise.all([
-      Attendance.find({ ownerId, timesheetId, employeeName, date: { $gte: firstDate, $lte: lastDate } })
-        .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1, actualPay: 1 })
-        .sort({ date: 1 })
-        .lean(),
-      WeeklyPay.find({ ownerId, timesheetId, employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
-        .select({ weekStart: 1, hourlyRate: 1 })
-        .lean(),
+      readWithSupabaseFallback(
+        "monthly attendance",
+        () => findSupabaseAttendance({ ownerId, timesheetId, employeeName, dateFrom: firstDate, dateTo: lastDate }),
+        async () => {
+          await connectToDatabase();
+          const records = await Attendance.find({ ownerId, timesheetId, employeeName, date: { $gte: firstDate, $lte: lastDate } })
+            .select({ date: 1, shifts: 1, coworkers: 1, totalHours: 1, extraHours: 1, actualPay: 1, createdAt: 1, updatedAt: 1 })
+            .sort({ date: 1 })
+            .lean();
+          return records.map((record) => ({
+            _id: String(record._id),
+            ownerId: String(record.ownerId ?? ownerId),
+            timesheetId: String(record.timesheetId ?? timesheetId),
+            employeeName: record.employeeName,
+            date: record.date,
+            shifts: record.shifts,
+            coworkers: record.coworkers,
+            totalHours: record.totalHours,
+            extraHours: record.extraHours,
+            actualPay: record.actualPay ?? null,
+            createdAt: record.createdAt,
+            updatedAt: record.updatedAt,
+          }));
+        },
+      ),
+      readWithSupabaseFallback(
+        "monthly weekly pay",
+        () => findSupabaseWeeklyPay({ ownerId, timesheetId, employeeName, weekStartFrom: firstWeek, weekStartTo: lastWeek }),
+        async () => {
+          await connectToDatabase();
+          const records = await WeeklyPay.find({ ownerId, timesheetId, employeeName, weekStart: { $gte: firstWeek, $lte: lastWeek } })
+            .select({ weekStart: 1, hourlyRate: 1 })
+            .lean();
+          return records.map((record) => ({ weekStart: record.weekStart, hourlyRate: record.hourlyRate }));
+        },
+      ),
     ]);
 
     const attendanceByWeek = new Map<string, typeof attendance>();
