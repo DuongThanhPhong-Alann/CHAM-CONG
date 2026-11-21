@@ -2,6 +2,7 @@ import { randomBytes, scrypt, timingSafeEqual, createHmac } from "node:crypto";
 import { promisify } from "node:util";
 import mongoose from "mongoose";
 import { cookies } from "next/headers";
+import { findSupabaseAccountById, readWithSupabaseFallback } from "@/lib/supabase-data";
 import { connectToDatabase } from "@/lib/mongodb";
 import Account from "@/models/Account";
 import Attendance from "@/models/Attendance";
@@ -20,6 +21,32 @@ export type PublicAccount = {
   email: string;
   role: "admin" | "user";
 };
+
+type AuthenticatedAccount = {
+  _id: unknown;
+  displayName: string;
+  phone: string;
+  email: string;
+  role: string;
+  public: PublicAccount;
+  [key: string]: unknown;
+};
+
+type AccountCacheEntry = { account: AuthenticatedAccount; expiresAt: number };
+type AuthState = {
+  accountCache?: Map<string, AccountCacheEntry>;
+  accountLookupPromises?: Map<string, Promise<AuthenticatedAccount | null>>;
+  bootstrapPromise?: Promise<unknown> | null;
+};
+
+const globalWithAuthState = globalThis as typeof globalThis & { authState?: AuthState };
+const authState = globalWithAuthState.authState ?? {
+  accountCache: new Map<string, AccountCacheEntry>(),
+  accountLookupPromises: new Map<string, Promise<AuthenticatedAccount | null>>(),
+  bootstrapPromise: null,
+};
+globalWithAuthState.authState = authState;
+const AUTH_CACHE_MS = 5000;
 
 function sessionSecret() {
   const secret = process.env.AUTH_SESSION_SECRET;
@@ -91,7 +118,24 @@ export async function clearSessionCookie() {
   cookieStore.set(SESSION_COOKIE, "", { httpOnly: true, sameSite: "strict", path: "/", maxAge: 0 });
 }
 
-export async function getAuthenticatedAccount() {
+export function invalidateAuthenticatedAccount(accountId?: string) {
+  if (accountId) {
+    authState.accountCache?.delete(accountId);
+    authState.accountLookupPromises?.delete(accountId);
+  } else {
+    authState.accountCache?.clear();
+    authState.accountLookupPromises?.clear();
+  }
+}
+
+export function rememberAuthenticatedAccount(account: PublicAccount) {
+  authState.accountCache?.set(account.id, {
+    account: { ...account, _id: account.id, public: account },
+    expiresAt: Date.now() + AUTH_CACHE_MS,
+  });
+}
+
+export async function getAuthenticatedAccount(): Promise<AuthenticatedAccount | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -102,9 +146,43 @@ export async function getAuthenticatedAccount() {
     return null;
   }
   if (!accountId) return null;
-  await connectToDatabase();
-  const account = await Account.findById(accountId).lean();
-  return account ? { ...account, _id: account._id, public: toPublicAccount(account) } : null;
+  const cached = authState.accountCache?.get(accountId);
+  if (cached && cached.expiresAt > Date.now()) return cached.account;
+  authState.accountCache?.delete(accountId);
+  const pending = authState.accountLookupPromises?.get(accountId);
+  if (pending) return pending;
+
+  const lookup = (async () => {
+    const readFromMongo = async () => {
+      await connectToDatabase();
+      return Account.findById(accountId).lean();
+    };
+    const account = await readWithSupabaseFallback(
+      "authenticated account lookup",
+      async () => (await findSupabaseAccountById(accountId)) ?? readFromMongo(),
+      readFromMongo,
+    );
+    if (!account) return null;
+    const authenticatedAccount = {
+      _id: account._id,
+      displayName: account.displayName,
+      phone: account.phone,
+      email: account.email,
+      role: account.role,
+      public: toPublicAccount(account),
+    } as AuthenticatedAccount;
+    authState.accountCache?.set(accountId, { account: authenticatedAccount, expiresAt: Date.now() + AUTH_CACHE_MS });
+    return authenticatedAccount;
+  })();
+  authState.accountLookupPromises?.set(accountId, lookup);
+  try {
+    return await lookup;
+  } finally {
+    const lookups = authState.accountLookupPromises;
+    if (lookups?.get(accountId) === lookup) {
+      lookups.delete(accountId);
+    }
+  }
 }
 
 export async function ensureDefaultTimesheet(ownerId: string, name = DEFAULT_TIMESHEET_NAME) {
@@ -112,15 +190,16 @@ export async function ensureDefaultTimesheet(ownerId: string, name = DEFAULT_TIM
   return Timesheet.findOneAndUpdate(
     { ownerId, name },
     { $setOnInsert: { ownerId, name, logicKey: "standard" } },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
   );
 }
 
-export async function bootstrapAdminAndMigrate() {
+async function runBootstrapAdminAndMigrate() {
   await connectToDatabase();
   sessionSecret();
   const migrations = mongoose.connection.collection<{ _id: string; adminId?: string; completedAt?: Date; ownerId?: string; timesheetId?: string }>("app_migrations");
   const migration = await migrations.findOne({ _id: "tenant-isolation-v1" });
+  if (migration?.completedAt && migration.adminId) return null;
   let admin = migration?.adminId ? await Account.findById(String(migration.adminId)) : null;
 
   if (!admin) {
@@ -180,4 +259,14 @@ export async function bootstrapAdminAndMigrate() {
     );
   }
   return admin;
+}
+
+export async function bootstrapAdminAndMigrate() {
+  if (!authState.bootstrapPromise) {
+    authState.bootstrapPromise = runBootstrapAdminAndMigrate().catch((error) => {
+      authState.bootstrapPromise = null;
+      throw error;
+    });
+  }
+  return authState.bootstrapPromise!;
 }

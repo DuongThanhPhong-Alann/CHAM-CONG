@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 export type ShiftRecord = {
   code: string;
   start: number;
@@ -27,6 +29,18 @@ export type WeeklyPayRecord = {
   employeeName: string;
   weekStart: string;
   hourlyRate: number;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
+};
+
+export type AccountRecord = {
+  _id: string;
+  displayName: string;
+  phone: string;
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+  role: "admin" | "user";
   createdAt?: string | Date;
   updatedAt?: string | Date;
 };
@@ -75,8 +89,21 @@ type SupabaseWeeklyPayRow = {
   updated_at?: string;
 };
 
+type SupabaseAccountRow = {
+  id: string;
+  display_name: string;
+  phone: string;
+  email: string;
+  password_hash: string;
+  password_salt: string;
+  role: "admin" | "user";
+  created_at?: string;
+  updated_at?: string;
+};
+
 const ATTENDANCE_COLUMNS = "id,owner_id,timesheet_id,employee_name,date,shifts,coworkers,extra_hours,total_hours,actual_pay,created_at,updated_at";
 const WEEKLY_PAY_COLUMNS = "id,owner_id,timesheet_id,employee_name,week_start,hourly_rate,created_at,updated_at";
+const ACCOUNT_COLUMNS = "id,display_name,phone,email,password_hash,password_salt,role,created_at,updated_at";
 const ATTENDANCE_CONFLICT = "owner_id,timesheet_id,employee_name,date";
 const WEEKLY_PAY_CONFLICT = "owner_id,timesheet_id,employee_name,week_start";
 const SUPABASE_TIMEOUT_MS = 5000;
@@ -168,6 +195,20 @@ function toWeeklyPayRecord(row: SupabaseWeeklyPayRow): WeeklyPayRecord {
   };
 }
 
+function toAccountRecord(row: SupabaseAccountRow): AccountRecord {
+  return {
+    _id: row.id,
+    displayName: row.display_name,
+    phone: row.phone,
+    email: row.email,
+    passwordHash: row.password_hash,
+    passwordSalt: row.password_salt,
+    role: row.role,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function timestamp(value?: string | Date) {
   return value ? new Date(value).toISOString() : new Date().toISOString();
 }
@@ -200,6 +241,58 @@ function toSupabaseWeeklyPay(record: Omit<WeeklyPayRecord, "_id"> & { _id?: stri
   };
   if (record.createdAt) row.created_at = timestamp(record.createdAt);
   return row;
+}
+
+function toSupabaseAccount(record: AccountRecord) {
+  return {
+    id: record._id,
+    display_name: record.displayName,
+    phone: record.phone,
+    email: record.email,
+    password_hash: record.passwordHash,
+    password_salt: record.passwordSalt,
+    role: record.role,
+    ...(record.createdAt ? { created_at: timestamp(record.createdAt) } : {}),
+    updated_at: timestamp(record.updatedAt),
+  };
+}
+
+export async function findSupabaseAccountById(id: string): Promise<AccountRecord | null> {
+  const params = new URLSearchParams({ select: ACCOUNT_COLUMNS, id: quotedFilter(id), limit: "1" });
+  const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params);
+  return rows[0] ? toAccountRecord(rows[0]) : null;
+}
+
+export async function findSupabaseAccountByIdentifier(identifier: string): Promise<AccountRecord | null> {
+  const email = identifier.toLowerCase();
+  const params = new URLSearchParams({
+    select: ACCOUNT_COLUMNS,
+    or: `(phone.${quotedFilter(identifier)},email.${quotedFilter(email)})`,
+    limit: "1",
+  });
+  const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params);
+  return rows[0] ? toAccountRecord(rows[0]) : null;
+}
+
+export async function findSupabaseAccounts(): Promise<AccountRecord[]> {
+  const params = new URLSearchParams({ select: ACCOUNT_COLUMNS, order: "created_at.asc" });
+  const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params);
+  return rows.map(toAccountRecord);
+}
+
+export async function upsertSupabaseAccount(record: AccountRecord) {
+  const params = new URLSearchParams({ on_conflict: "id", select: ACCOUNT_COLUMNS });
+  const rows = await requestSupabase<SupabaseAccountRow[]>("app_accounts", params, {
+    method: "POST",
+    body: toSupabaseAccount(record),
+    prefer: "resolution=merge-duplicates,return=representation",
+  });
+  return rows[0] ? toAccountRecord(rows[0]) : undefined;
+}
+
+export async function deleteSupabaseAccount(id: string) {
+  const params = new URLSearchParams({ id: quotedFilter(id) });
+  await requestSupabase<void>("app_accounts", params, { method: "DELETE" });
 }
 
 export async function findSupabaseAttendance(filter: AttendanceFilter): Promise<AttendanceRecord[]> {
@@ -265,7 +358,12 @@ export async function deleteSupabaseAttendance(filter: AttendanceFilter) {
   else if (filter.dateFrom) params.set("date", `gte.${filter.dateFrom}`);
   else if (filter.dateTo) params.set("date", `lte.${filter.dateTo}`);
   if (filter.dates?.length) params.set("date", `in.(${filter.dates.join(",")})`);
-  await requestSupabase<void>("attendance_records", params, { method: "DELETE" });
+  params.set("select", "id");
+  const deleted = await requestSupabase<{ id: string }[]>("attendance_records", params, {
+    method: "DELETE",
+    prefer: "return=representation",
+  });
+  return deleted.length;
 }
 
 export async function deleteSupabaseAttendanceForOwner(ownerId: string) {
@@ -296,17 +394,35 @@ export async function readWithSupabaseFallback<T>(label: string, supabaseRead: (
 }
 
 export async function writeToBoth<TSupabase, TMongo>(label: string, supabaseWrite: () => Promise<TSupabase>, mongoWrite: () => Promise<TMongo>) {
-  const [supabaseResult, mongoResult] = await Promise.allSettled([supabaseWrite(), mongoWrite()] as const);
-  const supabaseOk = supabaseResult.status === "fulfilled";
-  const mongoOk = mongoResult.status === "fulfilled";
+  if (!isSupabaseConfigured()) {
+    const mongoResult = await mongoWrite();
+    return { storage: "mongodb", supabaseResult: undefined, mongoResult };
+  }
 
-  if (!supabaseOk) console.warn(`[storage] Supabase write failed for ${label}`, supabaseResult.reason);
-  if (!mongoOk) console.warn(`[storage] MongoDB mirror write failed for ${label}`, mongoResult.reason);
-  if (!supabaseOk && !mongoOk) throw new Error(`${label} could not be saved in Supabase or MongoDB`);
+  let supabaseResult: TSupabase;
+  try {
+    supabaseResult = await supabaseWrite();
+  } catch (supabaseError) {
+    if (supabaseError instanceof Error && /"code"\s*:\s*"23505"/.test(supabaseError.message)) throw supabaseError;
+    console.warn(`[storage] Supabase write failed for ${label}; saving synchronously to MongoDB`, supabaseError);
+    const mongoResult = await mongoWrite();
+    after(async () => {
+      try {
+        await supabaseWrite();
+      } catch (retryError) {
+        console.error(`[storage] Deferred Supabase retry failed for ${label}`, retryError);
+      }
+    });
+    return { storage: "mongodb", supabaseResult: undefined, mongoResult, supabaseRetry: "scheduled" as const };
+  }
 
-  return {
-    storage: supabaseOk && mongoOk ? "supabase+mongodb" : supabaseOk ? "supabase" : "mongodb",
-    supabaseResult: supabaseResult.status === "fulfilled" ? supabaseResult.value : undefined,
-    mongoResult: mongoResult.status === "fulfilled" ? mongoResult.value : undefined,
-  };
+  after(async () => {
+    try {
+      await mongoWrite();
+    } catch (mongoError) {
+      console.error(`[storage] Deferred MongoDB mirror write failed for ${label}`, mongoError);
+    }
+  });
+
+  return { storage: "supabase", supabaseResult, mongoResult: undefined, mongoMirror: "scheduled" as const };
 }

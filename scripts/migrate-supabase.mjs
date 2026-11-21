@@ -46,6 +46,20 @@ try {
   const database = mongoose.connection.db;
   if (!database) throw new Error("MongoDB connection did not open a database");
 
+  const accounts = await database.collection("accounts").find({}).toArray();
+  const accountRows = accounts.map((record) => ({
+    id: String(record._id),
+    display_name: record.displayName,
+    phone: record.phone,
+    email: record.email,
+    password_hash: record.passwordHash,
+    password_salt: record.passwordSalt,
+    role: record.role,
+    created_at: record.createdAt?.toISOString?.() ?? new Date().toISOString(),
+    updated_at: record.updatedAt?.toISOString?.() ?? new Date().toISOString(),
+  }));
+  await upsert("app_accounts", "id", accountRows);
+
   const attendance = await database.collection("attendances").find({
     ownerId: { $type: "string" },
     timesheetId: { $type: "string" },
@@ -80,7 +94,7 @@ try {
   }));
   await upsert("weekly_pay", "owner_id,timesheet_id,employee_name,week_start", weeklyPayRows);
 
-  console.log(`Processed ${attendanceRows.length} MongoDB attendance records and ${weeklyPayRows.length} weekly pay records.`);
+  console.log(`Processed ${accountRows.length} accounts, ${attendanceRows.length} attendance records, and ${weeklyPayRows.length} weekly pay records.`);
 } finally {
   await mongoose.disconnect();
 }

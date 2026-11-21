@@ -200,6 +200,7 @@ export default function Home() {
   const [successAction, setSuccessAction] = useState<"add" | "delete" | "edit">("add");
   const [copied, setCopied] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isTimesheetModalOpen, setIsTimesheetModalOpen] = useState(false);
   const [authView, setAuthView] = useState<"loading" | "login" | "sheets" | "accounts" | "app">("loading");
   const [authAccount, setAuthAccount] = useState<SignedInAccount | null>(null);
   const [selectedTimesheet, setSelectedTimesheet] = useState<TimesheetOption | null>(null);
@@ -241,9 +242,11 @@ export default function Home() {
           return;
         }
         if (data.account) {
-          setAuthAccount(data.account as SignedInAccount);
+          const signedAccount = data.account as SignedInAccount;
+          setAuthAccount(signedAccount);
           await loadTimesheetOptions();
-          if (!cancelled) setAuthView("sheets");
+          if (cancelled) return;
+          setAuthView("sheets");
         } else {
           setAuthView("login");
         }
@@ -343,6 +346,13 @@ export default function Home() {
     }
     return cells;
   }, [selectedMonth]);
+  const currentBulkShift = SHIFT_OPTIONS.find((s) => s.code === bulkShiftCode);
+  const bulkSelectedHours = bulkMode === "add"
+    ? bulkSelectedDates.length * (currentBulkShift?.hours ?? 0)
+    : bulkSelectedDates.reduce((total, date) => {
+        const record = monthlyAttendance.find((r) => r.date === date);
+        return total + (record?.totalHours ?? 0);
+      }, 0);
   function startSheetPinch(event: ReactTouchEvent<HTMLDivElement>) {
     if (event.touches.length !== 2) return;
     const first = event.touches[0];
@@ -844,6 +854,49 @@ export default function Home() {
       : [...current, date].sort());
   }
 
+  function selectAllBulkDates() {
+    if (!selectedMonth) return;
+    const available = bulkCalendarCells.filter((date): date is string => {
+      if (!date) return false;
+      const record = monthlyAttendance.find((item) => item.date === date);
+      if (bulkMode === "add") {
+        return !record?.shifts.some((shift) => shift.code === bulkShiftCode);
+      }
+      return Boolean(record);
+    });
+    setBulkSelectedDates(available);
+  }
+
+  function selectWeekdayBulkDates() {
+    if (!selectedMonth) return;
+    const available = bulkCalendarCells.filter((date): date is string => {
+      if (!date) return false;
+      const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+      const record = monthlyAttendance.find((item) => item.date === date);
+      if (bulkMode === "add") {
+        return !record?.shifts.some((shift) => shift.code === bulkShiftCode);
+      }
+      return Boolean(record);
+    });
+    setBulkSelectedDates(available);
+  }
+
+  function selectWeekendBulkDates() {
+    if (!selectedMonth) return;
+    const available = bulkCalendarCells.filter((date): date is string => {
+      if (!date) return false;
+      const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) return false;
+      const record = monthlyAttendance.find((item) => item.date === date);
+      if (bulkMode === "add") {
+        return !record?.shifts.some((shift) => shift.code === bulkShiftCode);
+      }
+      return Boolean(record);
+    });
+    setBulkSelectedDates(available);
+  }
+
   async function saveBulkAttendance() {
     if (bulkSelectedDates.length === 0) {
       setError("Chọn ít nhất một ngày chưa có ca đã chọn");
@@ -1029,8 +1082,17 @@ export default function Home() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Không tạo được bảng chấm công");
-      setTimesheets((current) => [...current, data.timesheet as TimesheetOption]);
+      const createdSheet = data.timesheet as TimesheetOption;
+      setTimesheets((current) => [...current, createdSheet]);
       setNewTimesheetName("");
+      if (authView === "app") {
+        openTimesheet(createdSheet);
+        setIsTimesheetModalOpen(false);
+        setSuccessAction("add");
+        setMessage(`Đã tạo và mở bảng công "${createdSheet.name}"`);
+      } else {
+        setMessage(`Đã tạo bảng "${createdSheet.name}"`);
+      }
     } catch (createError) {
       setAuthError(createError instanceof Error ? createError.message : "Không tạo được bảng chấm công");
     } finally {
@@ -1143,14 +1205,93 @@ export default function Home() {
             </>
           ) : authView === "sheets" ? (
             <>
-              <div className="access-heading"><span className="eyebrow"><Table size={13} /> KHU VỰC LÀM VIỆC</span><h1>Chào {authAccount?.displayName}</h1><p>Chọn bảng chấm công muốn mở.</p></div>
-              <div className="timesheet-options">
-                {timesheets.map((sheet) => <button key={sheet.id} type="button" className="timesheet-option" onClick={() => openTimesheet(sheet)}><span className="timesheet-option-icon"><Table size={20} /></span><span><strong>{sheet.name}</strong><small>Bảng chấm công</small></span><ArrowRight size={19} /></button>)}
-                {timesheets.length === 0 && <div className="access-empty">Tài khoản chưa có bảng chấm công.</div>}
-              </div>
-              <form className="new-timesheet-form" onSubmit={createTimesheet}><label htmlFor="new-timesheet-name">Thêm bảng chấm công</label><div><input id="new-timesheet-name" value={newTimesheetName} onChange={(event) => setNewTimesheetName(event.target.value)} placeholder="Tên bảng mới" minLength={2} maxLength={100} required /><button className="primary-button" type="submit" disabled={authBusy}>Thêm bảng</button></div><small>Bảng mới hiện dùng quy tắc chấm công hiện tại.</small></form>
+              {authAccount?.role === "admin" ? (
+                <>
+                  <div className="access-heading">
+                    <span className="eyebrow"><UsersRound size={13} /> ADMINISTRATOR · QUẢN TRỊ VIÊN</span>
+                    <h1>Chào Admin, {authAccount?.displayName}</h1>
+                    <p>Bạn đã đăng nhập quyền Quản trị. Quản lý tài khoản nhân viên hoặc chọn mở bảng chấm công bên dưới.</p>
+                  </div>
+
+                  {/* KHU VỰC CHÍNH CỦA ADMIN: QUẢN LÝ TÀI KHOẢN */}
+                  <div className="admin-quick-access-card">
+                    <div className="admin-quick-badge"><UsersRound size={14} /> KHU VỰC QUẢN TRỊ</div>
+                    <h3>Quản lý danh sách tài khoản</h3>
+                    <p>Thêm tài khoản nhân viên mới, chỉnh sửa thông tin, đặt lại mật khẩu hoặc phân quyền quản trị.</p>
+                    <button className="primary-button admin-cta-btn" type="button" onClick={openAccountManager} disabled={authBusy}>
+                      <UsersRound size={16} /> Vào Quản lý tài khoản
+                    </button>
+                  </div>
+
+                  <div className="sheets-section-block">
+                    <div className="sheets-section-header">
+                      <strong>BẢNG CHẤM CÔNG CỦA BẠN ({timesheets.length})</strong>
+                      <span>Được thiết lập từ code gốc</span>
+                    </div>
+                    <div className="timesheet-options">
+                      {timesheets.map((sheet) => (
+                        <button key={sheet.id} type="button" className="timesheet-option" onClick={() => openTimesheet(sheet)}>
+                          <span className="timesheet-option-icon"><Table size={20} /></span>
+                          <span className="timesheet-option-text">
+                            <strong>{sheet.name}</strong>
+                            <small>Bảng chấm công · Bấm để làm việc</small>
+                          </span>
+                          <span className="timesheet-open-action">
+                            Mở bảng <ArrowRight size={15} />
+                          </span>
+                        </button>
+                      ))}
+                      {timesheets.length === 0 && <div className="access-empty">Chưa có bảng chấm công nào trong hệ thống.</div>}
+                    </div>
+                    <div className="code-sheets-note">
+                      <span>ℹ️ Bảng chấm công được thêm từ code gốc (`lib/timesheets-config.ts`), khi nào thêm trong code thì mới hiển thị tại đây.</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="access-heading">
+                    <span className="eyebrow"><Table size={13} /> KHU VỰC LÀM VIỆC</span>
+                    <h1>Chào {authAccount?.displayName}</h1>
+                    <p>Chọn bảng chấm công bạn muốn mở để làm việc.</p>
+                  </div>
+
+                  <div className="sheets-section-block">
+                    <div className="sheets-section-header">
+                      <strong>DANH SÁCH BẢNG CHẤM CÔNG ({timesheets.length})</strong>
+                      <span>Bấm vào để mở bảng</span>
+                    </div>
+                    <div className="timesheet-options">
+                      {timesheets.map((sheet) => (
+                        <button key={sheet.id} type="button" className="timesheet-option" onClick={() => openTimesheet(sheet)}>
+                          <span className="timesheet-option-icon"><Table size={20} /></span>
+                          <span className="timesheet-option-text">
+                            <strong>{sheet.name}</strong>
+                            <small>Bảng chấm công · Bấm để làm việc</small>
+                          </span>
+                          <span className="timesheet-open-action">
+                            Mở bảng <ArrowRight size={15} />
+                          </span>
+                        </button>
+                      ))}
+                      {timesheets.length === 0 && <div className="access-empty">Tài khoản chưa có bảng chấm công nào.</div>}
+                    </div>
+                    <div className="code-sheets-note">
+                      <span>ℹ️ Bảng chấm công được thiết lập từ code gốc (`lib/timesheets-config.ts`).</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {authError && <div className="access-error" role="alert">{authError}</div>}
-              <div className="access-actions">{authAccount?.role === "admin" && <button className="secondary-button" type="button" onClick={openAccountManager} disabled={authBusy}><UsersRound size={16} /> Quản lý tài khoản</button>}<button className="text-button" type="button" onClick={signOut}>Đăng xuất</button></div>
+              <div className="access-actions">
+                {authAccount?.role === "admin" && (
+                  <button className="secondary-button" type="button" onClick={openAccountManager} disabled={authBusy}>
+                    <UsersRound size={16} /> Quản lý tài khoản
+                  </button>
+                )}
+                <button className="text-button" type="button" onClick={signOut}>Đăng xuất</button>
+              </div>
             </>
           ) : (
             <>
@@ -1330,7 +1471,11 @@ export default function Home() {
 
           <div className="topbar-right">
             <span className="cloud-label"><span className="live-dot" /><Leaf size={13} className="leaf-accent" /> Dữ liệu MongoDB</span>
-            <button className="active-timesheet-chip" type="button" onClick={() => setAuthView("sheets")} title="Chọn bảng chấm công khác"><Table size={15} /><span>{selectedTimesheet?.name}</span><ArrowRight size={14} /></button>
+            <button className="active-timesheet-chip" type="button" onClick={() => setIsTimesheetModalOpen(true)} title="Xem danh sách hoặc đổi bảng chấm công">
+              <Table size={15} />
+              <span>{selectedTimesheet?.name}</span>
+              <ChevronDown size={14} />
+            </button>
             <button className="profile-chip" type="button" onClick={() => { setActiveTab("entry"); window.setTimeout(() => document.getElementById("employee-name")?.focus(), 0); }}>
               <span className="avatar">{(employeeName.trim()[0] || "T").toUpperCase()}</span>
               <span>{employeeName || "Thanh Phong"}</span>
@@ -1391,20 +1536,8 @@ export default function Home() {
             </div>
 
             <div className="drawer-nav-group">
-              <div className="drawer-group-title">CHỌN TAB CHỨC NĂNG</div>
-              <button
-                type="button"
-                className={`drawer-tab-btn ${activeTab === "week" ? "active" : ""}`}
-                onClick={() => { setActiveTab("week"); setIsDrawerOpen(false); }}
-              >
-                <div className="drawer-tab-icon icon-teal"><CalendarDays size={18} /></div>
-                <div className="drawer-tab-text">
-                  <strong>Ca trong tuần · Text</strong>
-                  <small>Xem tổng 7 ngày & sao chép text chốt ca</small>
-                </div>
-                <span className="drawer-tab-pill">{weeklyHours}h</span>
-              </button>
-
+              {/* Nhóm 1 trong drawer */}
+              <div className="drawer-group-title">NHÓM 1: NHẬP & GHI CA</div>
               <button
                 type="button"
                 className={`drawer-tab-btn ${activeTab === "entry" ? "active" : ""}`}
@@ -1429,6 +1562,36 @@ export default function Home() {
                 </div>
               </button>
 
+              {/* Nhóm 2 trong drawer */}
+              <div className="drawer-group-title">NHÓM 2: THEO DÕI CA</div>
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "week" ? "active" : ""}`}
+                onClick={() => { setActiveTab("week"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-teal"><CalendarDays size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Ca trong tuần · Text</strong>
+                  <small>Xem tổng 7 ngày & sao chép text chốt ca</small>
+                </div>
+                <span className="drawer-tab-pill">{weeklyHours}h</span>
+              </button>
+
+              <button
+                type="button"
+                className={`drawer-tab-btn ${activeTab === "sheet" ? "active" : ""}`}
+                onClick={() => { setActiveTab("sheet"); setIsDrawerOpen(false); }}
+              >
+                <div className="drawer-tab-icon icon-teal"><Table size={18} /></div>
+                <div className="drawer-tab-text">
+                  <strong>Bảng công tháng</strong>
+                  <small>Xem từng ngày theo hàng và cột</small>
+                </div>
+                <span className="drawer-tab-pill">{monthlyWorkDays} ngày</span>
+              </button>
+
+              {/* Nhóm 3 trong drawer */}
+              <div className="drawer-group-title">NHÓM 3: THU NHẬP & LƯƠNG</div>
               <button
                 type="button"
                 className={`drawer-tab-btn ${activeTab === "payroll" ? "active" : ""}`}
@@ -1454,28 +1617,21 @@ export default function Home() {
                 </div>
               </button>
 
-              <button
-                type="button"
-                className={`drawer-tab-btn ${activeTab === "sheet" ? "active" : ""}`}
-                onClick={() => { setActiveTab("sheet"); setIsDrawerOpen(false); }}
-              >
-                <div className="drawer-tab-icon icon-teal"><Table size={18} /></div>
-                <div className="drawer-tab-text">
-                  <strong>Bảng công tháng</strong>
-                  <small>Xem từng ngày theo hàng và cột</small>
-                </div>
-                <span className="drawer-tab-pill">{monthlyWorkDays} ngày</span>
-              </button>
-              {authAccount?.role === "admin" && <button type="button" className="drawer-tab-btn" onClick={() => { setIsDrawerOpen(false); void openAccountManager(); }}>
-                <div className="drawer-tab-icon icon-violet"><UsersRound size={18} /></div>
-                <div className="drawer-tab-text"><strong>Quản lý tài khoản</strong><small>Thêm, sửa hoặc xóa tài khoản</small></div>
-                <span className="drawer-tab-pill">ADMIN</span>
-              </button>}
+              {authAccount?.role === "admin" && (
+                <button type="button" className="drawer-tab-btn" onClick={() => { setIsDrawerOpen(false); void openAccountManager(); }}>
+                  <div className="drawer-tab-icon icon-violet"><UsersRound size={18} /></div>
+                  <div className="drawer-tab-text"><strong>Quản lý tài khoản</strong><small>Thêm, sửa hoặc xóa tài khoản</small></div>
+                  <span className="drawer-tab-pill">ADMIN</span>
+                </button>
+              )}
             </div>
 
             <div className="drawer-actions">
+              <button type="button" className="drawer-action-link" onClick={() => { setIsTimesheetModalOpen(true); setIsDrawerOpen(false); }}>
+                <Table size={16} /> Chuyển bảng chấm công
+              </button>
               <button type="button" className="drawer-action-link" onClick={() => { setAuthView("sheets"); setIsDrawerOpen(false); }}>
-                <Table size={16} /> Chọn bảng chấm công khác
+                <Table size={16} /> Toàn màn hình chọn bảng
               </button>
               <button
                 type="button"
@@ -1498,7 +1654,17 @@ export default function Home() {
         <section className="welcome" id="top">
           <div className="welcome-info">
             <div className="eyebrow"><Waves size={13} /> BẢNG CÔNG TÁC & CHỐT CA <TreePine size={13} /></div>
-            <h1>Bảng chấm công <span>{selectedTimesheet?.name || ""}</span></h1>
+            <div className="welcome-title-row">
+              <h1>Bảng chấm công <span>{selectedTimesheet?.name || ""}</span></h1>
+              <button
+                type="button"
+                className="switch-sheet-pill-btn"
+                onClick={() => setIsTimesheetModalOpen(true)}
+                title="Đổi hoặc tạo thêm bảng chấm công"
+              >
+                <Table size={13} /> Đổi / Thêm bảng ({timesheets.length})
+              </button>
+            </div>
             <p>{employeeName || "Nhân viên"} · Ghi nhận ca làm việc, chốt công cuối tuần và theo dõi thu nhập minh bạch</p>
           </div>
           <div className="welcome-badges">
@@ -1506,6 +1672,94 @@ export default function Home() {
             <div className="stat-pill highlight-pill"><Clock3 size={15} /> Tuần này: <strong>{weeklyHours} giờ</strong></div>
           </div>
         </section>
+
+        {/* THANH ĐIỀU HƯỚNG NGANG PHÂN NHÓM CHỨC NĂNG */}
+        <nav className="board-nav-grouped" aria-label="Thanh điều hướng nhóm chức năng">
+          {/* Nhóm 1: Nhập ca & Thao tác */}
+          <div className="nav-segment">
+            <div className="nav-segment-header">
+              <span className="nav-segment-tag">NHÓM 1</span>
+              <span className="nav-segment-title">NHẬP & GHI CA</span>
+            </div>
+            <div className="nav-segment-buttons">
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "entry" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("entry")}
+              >
+                <Plus size={15} strokeWidth={2.5} className="nav-btn-icon nav-icon-blue" />
+                <span className="nav-btn-text">Ghi nhận ca</span>
+              </button>
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "bulk" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("bulk")}
+              >
+                <Sparkles size={14} className="nav-btn-icon nav-icon-amber" />
+                <span className="nav-btn-text">Ghi nhiều ngày</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="nav-segment-divider" aria-hidden="true" />
+
+          {/* Nhóm 2: Theo dõi & Báo cáo */}
+          <div className="nav-segment">
+            <div className="nav-segment-header">
+              <span className="nav-segment-tag">NHÓM 2</span>
+              <span className="nav-segment-title">THEO DÕI CA</span>
+            </div>
+            <div className="nav-segment-buttons">
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "week" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("week")}
+              >
+                <CalendarDays size={15} className="nav-btn-icon nav-icon-teal" />
+                <span className="nav-btn-text">Ca trong tuần</span>
+                <span className="nav-btn-badge">{weeklyHours}h</span>
+              </button>
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "sheet" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("sheet")}
+              >
+                <Table size={15} className="nav-btn-icon nav-icon-teal" />
+                <span className="nav-btn-text">Bảng công tháng</span>
+                <span className="nav-btn-badge">{monthlyWorkDays} ngày</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="nav-segment-divider" aria-hidden="true" />
+
+          {/* Nhóm 3: Thu nhập & Thống kê */}
+          <div className="nav-segment">
+            <div className="nav-segment-header">
+              <span className="nav-segment-tag">NHÓM 3</span>
+              <span className="nav-segment-title">THU NHẬP & LƯƠNG</span>
+            </div>
+            <div className="nav-segment-buttons">
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "payroll" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("payroll")}
+              >
+                <Wallet size={15} className="nav-btn-icon nav-icon-green" />
+                <span className="nav-btn-text">Tính lương tuần</span>
+                {attendance.length > 0 && <span className="nav-btn-badge">{currency.format(estimatedPay)}</span>}
+              </button>
+              <button
+                type="button"
+                className={`nav-btn ${activeTab === "monthly" ? "is-active" : ""}`}
+                onClick={() => setActiveTab("monthly")}
+              >
+                <FileText size={15} className="nav-btn-icon nav-icon-violet" />
+                <span className="nav-btn-text">Tổng hợp tháng</span>
+              </button>
+            </div>
+          </div>
+        </nav>
 
         {(error || message) && (
           <div className="notice-backdrop" onClick={() => { setError(""); setMessage(""); }}>
@@ -1691,42 +1945,108 @@ export default function Home() {
 
                 {bulkMode === "add" && (
                   <div className="bulk-shift-field">
-                    <label className="field-label" htmlFor="bulk-shift">Ca áp dụng cho tất cả ngày đã chọn</label>
-                    <select id="bulk-shift" value={bulkShiftCode} onChange={(event) => { setBulkShiftCode(event.target.value as ShiftCode); setBulkSelectedDates([]); }}>
-                      {SHIFT_OPTIONS.filter((shift) => shift.code !== "O").map((shift) => (
-                        <option value={shift.code} key={shift.code}>{shift.code} · {shift.start}:00–{shift.end}:00 · {shift.hours} giờ</option>
-                      ))}
-                    </select>
-                    <span className="field-hint">Ca mới được thêm cùng các ca đã có; ngày đã có đúng ca này sẽ được bỏ qua. Hệ số lương tuần vẫn áp dụng riêng theo từng ngày.</span>
+                    <div className="bulk-shift-label-row">
+                      <label className="field-label" htmlFor="bulk-shift-label">Chọn ca để áp dụng cho các ngày đã chọn</label>
+                      <span className="bulk-shift-chosen-pill">
+                        Đang chọn: <strong>Ca {bulkShiftCode} ({currentBulkShift?.hours}h)</strong>
+                      </span>
+                    </div>
+
+                    <div className="bulk-shift-grid" id="bulk-shift-label" role="radiogroup" aria-label="Chọn ca làm việc">
+                      {SHIFT_OPTIONS.filter((shift) => shift.code !== "O").map((shift) => {
+                        const isSelected = bulkShiftCode === shift.code;
+                        return (
+                          <button
+                            type="button"
+                            key={shift.code}
+                            role="radio"
+                            aria-checked={isSelected}
+                            className={`shift-card bulk-shift-card tone-${shift.tone} ${isSelected ? "is-selected" : ""}`}
+                            onClick={() => {
+                              setBulkShiftCode(shift.code);
+                              setBulkSelectedDates([]);
+                            }}
+                          >
+                            <span className="shift-code">{shift.code}</span>
+                            <div className="shift-info">
+                              <span className="shift-time">{shift.start}:00 – {shift.end}:00</span>
+                              <span className="shift-hours">{shift.hours} giờ</span>
+                            </div>
+                            <span className="shift-check">{isSelected && <Check size={13} strokeWidth={3} />}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="field-hint">Chọn ca ở trên rồi chọn các ngày bên dưới. Ngày đã có sẵn ca này sẽ được tự động khóa để chống trùng lặp.</span>
                   </div>
                 )}
 
-                <div className="bulk-calendar-heading">
-                  <strong>{formatMonthLabel(selectedMonth)}</strong>
-                  <span>{bulkMode === "add" ? "Ngày đã có ca này được khóa" : "Chỉ chọn được ngày đã có công"}</span>
+                <div className="bulk-calendar-toolbar">
+                  <div className="bulk-calendar-heading">
+                    <strong>{formatMonthLabel(selectedMonth)}</strong>
+                    <span>{bulkMode === "add" ? "Ngày đã có ca này được khóa để chống trùng" : "Chỉ chọn được các ngày đã ghi công"}</span>
+                  </div>
+
+                  <div className="bulk-quick-select-row" role="group" aria-label="Chọn ngày nhanh">
+                    <span className="quick-select-label">Chọn nhanh:</span>
+                    <button type="button" className="quick-select-btn" onClick={selectAllBulkDates}>Tất cả</button>
+                    <button type="button" className="quick-select-btn" onClick={selectWeekdayBulkDates}>T2 – T6</button>
+                    <button type="button" className="quick-select-btn" onClick={selectWeekendBulkDates}>T7 & CN</button>
+                    {bulkSelectedDates.length > 0 && (
+                      <button type="button" className="quick-select-btn quick-clear-btn" onClick={() => setBulkSelectedDates([])}>Bỏ chọn ({bulkSelectedDates.length})</button>
+                    )}
+                  </div>
                 </div>
 
                 {monthlyLoading ? <div className="empty-state">Đang tải dữ liệu tháng…</div> : (
                   <div className="bulk-calendar-grid">
-                    {SHORT_WEEKDAYS.map((weekday) => <span className="bulk-weekday" key={weekday}>{weekday}</span>)}
+                    {SHORT_WEEKDAYS.map((weekday, i) => (
+                      <span className={`bulk-weekday ${i >= 5 ? "bulk-weekday-weekend" : ""}`} key={weekday}>{weekday}</span>
+                    ))}
                     {bulkCalendarCells.map((date, index) => {
                       if (!date) return <span className="bulk-calendar-empty" key={`empty-${index}`} />;
                       const record = monthlyAttendance.find((item) => item.date === date);
                       const alreadyHasShift = record?.shifts.some((shift) => shift.code === bulkShiftCode) ?? false;
                       const disabled = bulkMode === "add" ? alreadyHasShift : !record;
                       const selected = bulkSelectedDates.includes(date);
+                      const dayNum = Number(date.slice(-2));
+                      const dayOfWeek = new Date(`${date}T12:00:00`).getDay();
+                      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
                       return (
                         <button
                           type="button"
                           key={date}
-                          className={`bulk-date-cell ${record ? "has-record" : ""} ${selected ? "selected" : ""} ${bulkMode === "delete" && selected ? "selected-delete" : ""}`}
+                          className={`bulk-date-cell ${record ? "has-record" : "is-empty"} ${selected ? "selected" : ""} ${bulkMode === "delete" && selected ? "selected-delete" : ""} ${isWeekend ? "is-weekend" : ""}`}
                           aria-pressed={selected}
                           aria-label={`${dateLabel(date)}${record ? `, ${record.totalHours} giờ` : ", chưa ghi công"}`}
                           disabled={disabled}
                           onClick={() => toggleBulkDate(date)}
+                          title={disabled ? (bulkMode === "add" ? `Ngày ${dateLabel(date)} đã có ca ${bulkShiftCode}` : `Ngày ${dateLabel(date)} chưa có công để xóa`) : `Bấm để chọn/bỏ chọn ngày ${dateLabel(date)}`}
                         >
-                          <strong>{Number(date.slice(-2))}</strong>
-                          <small>{record ? `${record.shifts.map((shift) => shift.code).join("+")} · ${record.totalHours}h` : "Trống"}</small>
+                          <div className="bulk-cell-top">
+                            <strong className="bulk-day-number">{dayNum}</strong>
+                            {selected && (
+                              <span className="bulk-selection-mark">
+                                {bulkMode === "delete" ? <Trash2 size={11} strokeWidth={2.5} /> : <Check size={11} strokeWidth={3} />}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="bulk-cell-body">
+                            {record ? (
+                              <span className="bulk-record-tag">
+                                <span className="bulk-record-codes">{record.shifts.map((s) => s.code).join("+")}</span>
+                                <span className="bulk-record-hours">{record.totalHours}h</span>
+                              </span>
+                            ) : (
+                              <span className="bulk-empty-tag">Trống</span>
+                            )}
+                          </div>
+
+                          {disabled && bulkMode === "add" && alreadyHasShift && (
+                            <span className="bulk-cell-lock">Đã có</span>
+                          )}
                         </button>
                       );
                     })}
@@ -1734,14 +2054,19 @@ export default function Home() {
                 )}
 
                 <div className="bulk-action-footer">
-                  <span>{bulkSelectedDates.length} ngày đã chọn</span>
+                  <div className="bulk-selection-summary">
+                    <span>Đã chọn: <strong>{bulkSelectedDates.length} ngày</strong></span>
+                    {bulkSelectedDates.length > 0 && (
+                      <span className="bulk-hours-summary">· Tổng {bulkSelectedHours} giờ</span>
+                    )}
+                  </div>
                   {bulkMode === "add" ? (
-                    <button className="primary-button" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={saveBulkAttendance}>
-                      {savingBulk ? "Đang ghi…" : <><Check size={16} /> Ghi ca {bulkShiftCode} cho {bulkSelectedDates.length} ngày</>}
+                    <button className="primary-button bulk-submit-btn" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={saveBulkAttendance}>
+                      {savingBulk ? "Đang ghi…" : <><Check size={16} /> Ghi ca {bulkShiftCode} cho {bulkSelectedDates.length} ngày {bulkSelectedDates.length > 0 ? `(+${bulkSelectedHours}h)` : ""}</>}
                     </button>
                   ) : (
-                    <button className="bulk-delete-button" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={deleteBulkAttendance}>
-                      {savingBulk ? "Đang xóa…" : <><Trash2 size={16} /> Xóa công {bulkSelectedDates.length} ngày</>}
+                    <button className="bulk-delete-button bulk-submit-btn" type="button" disabled={savingBulk || monthlyLoading || bulkSelectedDates.length === 0} onClick={deleteBulkAttendance}>
+                      {savingBulk ? "Đang xóa…" : <><Trash2 size={16} /> Xóa công {bulkSelectedDates.length} ngày {bulkSelectedDates.length > 0 ? `(-${bulkSelectedHours}h)` : ""}</>}
                     </button>
                   )}
                 </div>
@@ -2100,6 +2425,70 @@ export default function Home() {
 
         <footer className="footer-note"><span>Chốt công, an tâm cuối tuần</span><span>Được lưu an toàn trong cơ sở dữ liệu <span className="footer-cloud">◉</span></span></footer>
       </div>
+
+      {/* MODAL QUẢN LÝ & THÊM BẢNG CHẤM CÔNG */}
+      {isTimesheetModalOpen && (
+        <div className="timesheet-modal-backdrop" onClick={() => setIsTimesheetModalOpen(false)}>
+          <div className="timesheet-modal-card" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Quản lý bảng chấm công">
+            <div className="timesheet-modal-header">
+              <div className="timesheet-modal-title-group">
+                <span className="modal-title-icon"><Table size={20} /></span>
+                <div>
+                  <h3>Quản lý bảng chấm công</h3>
+                  <p>Đổi qua lại giữa các bảng hoặc tạo thêm bảng mới tức thì.</p>
+                </div>
+              </div>
+              <button type="button" className="timesheet-modal-close" onClick={() => setIsTimesheetModalOpen(false)} aria-label="Đóng">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="timesheet-modal-body">
+              <div className="modal-section-title">
+                <span>CÁC BẢNG ĐANG CÓ ({timesheets.length})</span>
+                <small>Bấm vào bảng để chuyển đổi ngay</small>
+              </div>
+              <div className="modal-sheets-grid">
+                {timesheets.map((sheet) => {
+                  const isCurrent = sheet.id === selectedTimesheet?.id;
+                  return (
+                    <button
+                      key={sheet.id}
+                      type="button"
+                      className={`modal-sheet-item ${isCurrent ? "is-current" : ""}`}
+                      onClick={() => { openTimesheet(sheet); setIsTimesheetModalOpen(false); }}
+                    >
+                      <div className="modal-sheet-icon"><Table size={18} /></div>
+                      <div className="modal-sheet-text">
+                        <strong>{sheet.name}</strong>
+                        <small>{isCurrent ? "Đang mở làm việc" : "Bấm để mở bảng này"}</small>
+                      </div>
+                      {isCurrent ? (
+                        <span className="current-badge"><Check size={14} strokeWidth={3} /> Đang mở</span>
+                      ) : (
+                        <span className="open-arrow"><ArrowRight size={15} /></span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="code-sheets-note modal-code-note">
+                <span>ℹ️ Bảng chấm công được thêm từ code gốc (`lib/timesheets-config.ts`), khi nào thêm trong code thì mới hiển thị tại đây.</span>
+              </div>
+            </div>
+
+            <div className="timesheet-modal-footer">
+              <button type="button" className="secondary-button" onClick={() => { setIsTimesheetModalOpen(false); setAuthView("sheets"); }}>
+                <Table size={15} /> Toàn màn hình chọn bảng
+              </button>
+              <button type="button" className="text-button" onClick={() => setIsTimesheetModalOpen(false)}>
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

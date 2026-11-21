@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import mongoose from "mongoose";
 import { hashPassword, getAuthenticatedAccount, toPublicAccount } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import Account from "@/models/Account";
+import { findSupabaseAccounts, readWithSupabaseFallback, upsertSupabaseAccount, writeToBoth } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 
@@ -21,8 +23,14 @@ export async function GET() {
   const requester = await getAuthenticatedAccount();
   if (!requester) return NextResponse.json({ error: "Vui lòng đăng nhập" }, { status: 401 });
   if (requester.role !== "admin") return NextResponse.json({ error: "Bạn không có quyền quản lý tài khoản" }, { status: 403 });
-  await connectToDatabase();
-  const accounts = await Account.find().sort({ createdAt: 1 }).lean();
+  const accounts = await readWithSupabaseFallback(
+    "account list",
+    () => findSupabaseAccounts(),
+    async () => {
+      await connectToDatabase();
+      return Account.find().sort({ createdAt: 1 }).lean();
+    },
+  );
   return NextResponse.json({ accounts: accounts.map(toPublicAccount) });
 }
 
@@ -33,19 +41,31 @@ export async function POST(request: Request) {
   try {
     const data = validateAccount(await request.json());
     if ("error" in data) return NextResponse.json({ error: data.error }, { status: 400 });
-    await connectToDatabase();
     const credentials = await hashPassword(data.password);
-    const account = await Account.create({
+    const accountRecord = {
+      _id: new mongoose.Types.ObjectId().toString(),
       displayName: data.displayName,
       phone: data.phone,
       email: data.email,
       passwordHash: credentials.hash,
       passwordSalt: credentials.salt,
-      role: "user",
-    });
-    return NextResponse.json({ account: toPublicAccount(account) }, { status: 201 });
+      role: "user" as const,
+      updatedAt: new Date(),
+    };
+    const saved = await writeToBoth(
+      "account create",
+      () => upsertSupabaseAccount(accountRecord),
+      async () => {
+        await connectToDatabase();
+        return Account.create(accountRecord);
+      },
+    );
+    const account = saved.supabaseResult ?? saved.mongoResult;
+    if (!account) throw new Error("Account was not returned after saving");
+    return NextResponse.json({ account: toPublicAccount(account), storage: saved.storage }, { status: 201 });
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === 11000) {
+    if ((error && typeof error === "object" && "code" in error && error.code === 11000)
+      || (error instanceof Error && /"code"\s*:\s*"23505"/.test(error.message))) {
       return NextResponse.json({ error: "Số điện thoại hoặc email đã được sử dụng" }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Không thể tạo tài khoản";

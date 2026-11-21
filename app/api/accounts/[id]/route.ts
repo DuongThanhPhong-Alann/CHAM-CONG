@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
-import { hashPassword, getAuthenticatedAccount, toPublicAccount } from "@/lib/auth";
+import { hashPassword, getAuthenticatedAccount, invalidateAuthenticatedAccount, toPublicAccount } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import Account from "@/models/Account";
 import Attendance from "@/models/Attendance";
 import Timesheet from "@/models/Timesheet";
 import WeeklyPay from "@/models/WeeklyPay";
-import { deleteSupabaseAttendanceForOwner, deleteSupabaseWeeklyPayForOwner } from "@/lib/supabase-data";
+import {
+  deleteSupabaseAccount,
+  deleteSupabaseAttendanceForOwner,
+  deleteSupabaseWeeklyPayForOwner,
+  findSupabaseAccountById,
+  findSupabaseAccounts,
+  readWithSupabaseFallback,
+  upsertSupabaseAccount,
+  writeToBoth,
+} from "@/lib/supabase-data";
+import { invalidateTimesheetAuthorizationCache } from "@/lib/tenant";
 
 export const runtime = "nodejs";
 
@@ -37,18 +47,51 @@ export async function PUT(request: Request, { params }: Context) {
     if (!/^\+?[0-9\s()-]{8,20}$/.test(phone)) return NextResponse.json({ error: "Số điện thoại chưa hợp lệ" }, { status: 400 });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: "Email chưa hợp lệ" }, { status: 400 });
     if (password && password.length < 8) return NextResponse.json({ error: "Mật khẩu mới cần ít nhất 8 ký tự" }, { status: 400 });
-    await connectToDatabase();
+    const current = await readWithSupabaseFallback(
+      "account update lookup",
+      () => findSupabaseAccountById(id),
+      async () => {
+        await connectToDatabase();
+        return Account.findById(id).select("+passwordHash +passwordSalt").lean();
+      },
+    );
+    if (!current) return NextResponse.json({ error: "Account not found" }, { status: 404 });
     const fields: Record<string, unknown> = { displayName, phone, email };
+    let passwordHash = current.passwordHash;
+    let passwordSalt = current.passwordSalt;
     if (password) {
       const credentials = await hashPassword(password);
-      fields.passwordHash = credentials.hash;
-      fields.passwordSalt = credentials.salt;
+      passwordHash = credentials.hash;
+      passwordSalt = credentials.salt;
+      fields.passwordHash = passwordHash;
+      fields.passwordSalt = passwordSalt;
     }
-    const account = await Account.findByIdAndUpdate(id, { $set: fields }, { new: true, runValidators: true });
+    const accountRecord = {
+      _id: String(current._id),
+      displayName,
+      phone,
+      email,
+      passwordHash,
+      passwordSalt,
+      role: current.role === "admin" ? "admin" as const : "user" as const,
+      createdAt: current.createdAt,
+      updatedAt: new Date(),
+    };
+    const saved = await writeToBoth(
+      "account update",
+      () => upsertSupabaseAccount(accountRecord),
+      async () => {
+        await connectToDatabase();
+        return Account.findByIdAndUpdate(id, { $set: fields }, { returnDocument: "after", runValidators: true }).select("+passwordHash +passwordSalt");
+      },
+    );
+    const account = saved.supabaseResult ?? saved.mongoResult;
     if (!account) return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
-    return NextResponse.json({ account: toPublicAccount(account) });
+    invalidateAuthenticatedAccount(id);
+    return NextResponse.json({ account: toPublicAccount(account), storage: saved.storage });
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === 11000) {
+    if ((error && typeof error === "object" && "code" in error && error.code === 11000)
+      || (error instanceof Error && /"code"\s*:\s*"23505"/.test(error.message))) {
       return NextResponse.json({ error: "Số điện thoại hoặc email đã được sử dụng" }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Không thể cập nhật tài khoản";
@@ -62,30 +105,46 @@ export async function DELETE(_request: Request, { params }: Context) {
   try {
     const { id } = await params;
     if (String(access.requester?._id) === id) return NextResponse.json({ error: "Không thể xóa tài khoản admin đang đăng nhập" }, { status: 400 });
-    await connectToDatabase();
-    const account = await Account.findById(id);
+    const account = await readWithSupabaseFallback(
+      "account delete lookup",
+      () => findSupabaseAccountById(id),
+      async () => {
+        await connectToDatabase();
+        return Account.findById(id).lean();
+      },
+    );
     if (!account) return NextResponse.json({ error: "Không tìm thấy tài khoản" }, { status: 404 });
     if (account.role === "admin") {
-      const adminCount = await Account.countDocuments({ role: "admin" });
+      const adminCount = await readWithSupabaseFallback(
+        "admin account count",
+        async () => (await findSupabaseAccounts()).filter((item) => item.role === "admin").length,
+        async () => {
+          await connectToDatabase();
+          return Account.countDocuments({ role: "admin" });
+        },
+      );
       if (adminCount <= 1) return NextResponse.json({ error: "Không thể xóa admin cuối cùng" }, { status: 400 });
     }
-    const [mongoCleanup, supabaseCleanup] = await Promise.allSettled([
-      Promise.all([
-        Attendance.deleteMany({ ownerId: id }),
-        WeeklyPay.deleteMany({ ownerId: id }),
-        Timesheet.deleteMany({ ownerId: id }),
-        Account.deleteOne({ _id: id }),
-      ]),
-      Promise.all([
+    const cleanup = await writeToBoth(
+      "account delete",
+      () => Promise.all([
+        deleteSupabaseAccount(id),
         deleteSupabaseAttendanceForOwner(id),
         deleteSupabaseWeeklyPayForOwner(id),
       ]),
-    ]);
-    if (mongoCleanup.status === "rejected") throw mongoCleanup.reason;
-    if (supabaseCleanup.status === "rejected") {
-      console.warn("[storage] Supabase account cleanup failed", supabaseCleanup.reason);
-    }
-    return NextResponse.json({ ok: true, storage: supabaseCleanup.status === "fulfilled" ? "supabase+mongodb" : "mongodb" });
+      async () => {
+        await connectToDatabase();
+        return Promise.all([
+          Attendance.deleteMany({ ownerId: id }),
+          WeeklyPay.deleteMany({ ownerId: id }),
+          Timesheet.deleteMany({ ownerId: id }),
+          Account.deleteOne({ _id: id }),
+        ]);
+      },
+    );
+    invalidateAuthenticatedAccount(id);
+    invalidateTimesheetAuthorizationCache(id);
+    return NextResponse.json({ ok: true, storage: cleanup.storage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa tài khoản";
     return NextResponse.json({ error: message }, { status: 500 });

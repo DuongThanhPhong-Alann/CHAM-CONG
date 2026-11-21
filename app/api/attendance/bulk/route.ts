@@ -188,9 +188,10 @@ export async function DELETE(request: Request) {
         return Attendance.deleteMany({ ownerId, timesheetId, employeeName, date: { $in: dates } });
       },
     );
-    const deletedCount = result.mongoResult && typeof result.mongoResult === "object" && "deletedCount" in result.mongoResult
+    const mongoDeletedCount = result.mongoResult && typeof result.mongoResult === "object" && "deletedCount" in result.mongoResult
       ? result.mongoResult.deletedCount
       : undefined;
+    const deletedCount = result.supabaseResult ?? mongoDeletedCount ?? 0;
     return NextResponse.json({ deletedCount, storage: result.storage });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Không thể xóa công nhiều ngày";

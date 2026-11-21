@@ -153,7 +153,7 @@ export async function POST(request: Request) {
         return Attendance.findOneAndUpdate(
           { ownerId, timesheetId, employeeName, date },
           { ownerId, timesheetId, employeeName, date, shifts, coworkers, extraHours, totalHours, actualPay },
-          { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+          { returnDocument: "after", upsert: true, runValidators: true, setDefaultsOnInsert: true },
         );
       },
     );

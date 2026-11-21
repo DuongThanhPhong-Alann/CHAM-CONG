@@ -40,7 +40,7 @@ export async function PUT(request: Request) {
         return WeeklyPay.findOneAndUpdate(
           { ownerId, timesheetId, employeeName, weekStart },
           { ownerId, timesheetId, employeeName, weekStart, hourlyRate },
-          { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
+          { returnDocument: "after", upsert: true, runValidators: true, setDefaultsOnInsert: true },
         );
       },
     );
