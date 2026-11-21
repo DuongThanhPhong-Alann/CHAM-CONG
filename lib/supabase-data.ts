@@ -111,6 +111,9 @@ const ACCOUNT_COLUMNS = "id,display_name,phone,email,password_hash,password_salt
 const ATTENDANCE_CONFLICT = "owner_id,timesheet_id,employee_name,date";
 const WEEKLY_PAY_CONFLICT = "owner_id,timesheet_id,employee_name,week_start";
 const SUPABASE_TIMEOUT_MS = 5000;
+const PASSKEY_CHALLENGE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+let lastPasskeyChallengeCleanupAt = 0;
+let passkeyChallengeCleanupScheduled = false;
 
 function getSupabaseConfig() {
   const url = process.env.SUPABASE_URL?.replace(/\/+$/, "");
@@ -124,6 +127,24 @@ export function isSupabaseConfigured() {
     process.env.SUPABASE_URL
       && (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY),
   );
+}
+
+function scheduleExpiredPasskeyChallengeCleanup() {
+  const now = Date.now();
+  if (passkeyChallengeCleanupScheduled || now - lastPasskeyChallengeCleanupAt < PASSKEY_CHALLENGE_CLEANUP_INTERVAL_MS) return;
+
+  lastPasskeyChallengeCleanupAt = now;
+  passkeyChallengeCleanupScheduled = true;
+  after(async () => {
+    try {
+      const expired = new URLSearchParams({ expires_at: `lt.${timestamp()}` });
+      await requestSupabase<void>("app_passkey_challenges", expired, { method: "DELETE" });
+    } catch (error) {
+      console.warn("[storage] Expired passkey challenge cleanup failed", error);
+    } finally {
+      passkeyChallengeCleanupScheduled = false;
+    }
+  });
 }
 
 async function requestSupabase<T>(table: string, params: URLSearchParams, options: {
@@ -318,8 +339,6 @@ export async function updateSupabaseAccountPasskeys(id: string, passkeys: Passke
 }
 
 export async function saveSupabasePasskeyChallenge(record: PasskeyChallengeRecord) {
-  const expired = new URLSearchParams({ expires_at: `lt.${timestamp()}` });
-  await requestSupabase<void>("app_passkey_challenges", expired, { method: "DELETE" });
   const params = new URLSearchParams({ on_conflict: "challenge" });
   await requestSupabase<void>("app_passkey_challenges", params, {
     method: "POST",
@@ -331,6 +350,7 @@ export async function saveSupabasePasskeyChallenge(record: PasskeyChallengeRecor
     },
     prefer: "resolution=merge-duplicates,return=minimal",
   });
+  scheduleExpiredPasskeyChallengeCleanup();
 }
 
 export async function consumeSupabasePasskeyChallenge(record: Pick<PasskeyChallengeRecord, "challenge" | "accountId" | "purpose">) {

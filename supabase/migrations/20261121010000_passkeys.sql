@@ -18,3 +18,7 @@ create index if not exists app_passkey_challenges_expires_at_idx
 alter table public.app_passkey_challenges enable row level security;
 revoke all on public.app_passkey_challenges from anon, authenticated;
 grant select, insert, update, delete on public.app_passkey_challenges to service_role;
+
+
+
+
